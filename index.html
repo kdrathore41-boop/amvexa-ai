@@ -36,7 +36,8 @@
     }
 
     button,
-    input {
+    input,
+    textarea {
       font: inherit;
     }
 
@@ -45,8 +46,6 @@
       display: flex;
       flex-direction: column;
     }
-
-    /* Header */
 
     header {
       height: 72px;
@@ -120,8 +119,6 @@
       background: rgba(255,255,255,0.04);
     }
 
-    /* Main */
-
     main {
       width: min(100%, 900px);
       margin: 0 auto;
@@ -164,8 +161,6 @@
       line-height: 1.6;
       font-size: 15px;
     }
-
-    /* Command box */
 
     .command {
       background: var(--panel);
@@ -238,7 +233,55 @@
       transform: translateY(-2px);
     }
 
-    /* Quick actions */
+    .send:disabled {
+      opacity: 0.55;
+      cursor: wait;
+      transform: none;
+    }
+
+    .conversation {
+      display: none;
+      margin-top: 18px;
+      gap: 10px;
+    }
+
+    .conversation.show {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message {
+      max-width: 88%;
+      padding: 13px 15px;
+      border-radius: 17px;
+      font-size: 14px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: var(--accent);
+      color: #07111f;
+      border-bottom-right-radius: 5px;
+    }
+
+    .message.assistant {
+      align-self: flex-start;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: #e6edf8;
+      border-bottom-left-radius: 5px;
+    }
+
+    .message-label {
+      display: block;
+      font-size: 9px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      opacity: 0.55;
+      margin-bottom: 5px;
+    }
 
     .section-title {
       color: #718097;
@@ -279,8 +322,6 @@
     .quick-name {
       font-size: 12px;
     }
-
-    /* Activity */
 
     .activity {
       border: 1px solid var(--border);
@@ -326,8 +367,6 @@
       font-size: 11px;
     }
 
-    /* Bottom navigation */
-
     nav {
       position: fixed;
       bottom: 14px;
@@ -366,8 +405,6 @@
       font-size: 18px;
     }
 
-    /* Toast */
-
     .toast {
       position: fixed;
       left: 50%;
@@ -383,6 +420,8 @@
       pointer-events: none;
       transition: 0.25s ease;
       z-index: 30;
+      max-width: calc(100% - 40px);
+      text-align: center;
     }
 
     .toast.show {
@@ -424,9 +463,10 @@
 
         <div>
           <div class="brand-name">Amvexa</div>
+
           <div class="brand-status">
             <span class="status-dot"></span>
-            Ready
+            <span id="statusText">Ready</span>
           </div>
         </div>
       </div>
@@ -462,16 +502,32 @@
         <div class="command-bottom">
 
           <div class="command-tools">
-            <button class="tool" onclick="showToast('Voice mode will be connected next.')">◉</button>
-            <button class="tool" onclick="showToast('File intelligence will be connected next.')">＋</button>
+            <button
+              class="tool"
+              onclick="showToast('Voice mode will be connected next.')"
+              aria-label="Voice"
+            >◉</button>
+
+            <button
+              class="tool"
+              onclick="showToast('File intelligence will be connected next.')"
+              aria-label="Files"
+            >＋</button>
           </div>
 
-          <button class="send" onclick="sendMessage()" aria-label="Send">
+          <button
+            id="sendButton"
+            class="send"
+            onclick="sendMessage()"
+            aria-label="Send"
+          >
             ↑
           </button>
 
         </div>
       </section>
+
+      <section id="conversation" class="conversation"></section>
 
       <div class="section-title">Quick actions</div>
 
@@ -506,8 +562,8 @@
         <div class="activity-item">
           <div class="activity-icon">✦</div>
           <div class="activity-text">
-            <strong>Amvexa is ready</strong>
-            <span>Core intelligence workspace</span>
+            <strong>Amvexa is online</strong>
+            <span>Live backend connection available</span>
           </div>
         </div>
 
@@ -543,12 +599,18 @@
         Chat
       </button>
 
-      <button class="nav-item" onclick="showToast('Tasks will be connected next.')">
+      <button
+        class="nav-item"
+        onclick="showToast('Task engine is coming after the AI brain.')"
+      >
         <span class="nav-icon">✓</span>
         Tasks
       </button>
 
-      <button class="nav-item" onclick="showToast('Settings will be connected next.')">
+      <button
+        class="nav-item"
+        onclick="showToast('Settings will be connected after the core brain.')"
+      >
         <span class="nav-icon">⚙</span>
         Settings
       </button>
@@ -560,8 +622,13 @@
   </div>
 
   <script>
+    const API_URL = "https://amvexa-ai.onrender.com";
+
     const input = document.getElementById("commandInput");
     const toast = document.getElementById("toast");
+    const conversation = document.getElementById("conversation");
+    const sendButton = document.getElementById("sendButton");
+    const statusText = document.getElementById("statusText");
 
     function setCommand(text) {
       input.value = text;
@@ -570,13 +637,38 @@
 
     function focusCommand() {
       input.focus();
+
       window.scrollTo({
         top: 0,
         behavior: "smooth"
       });
     }
 
-    function sendMessage() {
+    function addMessage(type, text) {
+      conversation.classList.add("show");
+
+      const message = document.createElement("div");
+      message.className = `message ${type}`;
+
+      const label = document.createElement("span");
+      label.className = "message-label";
+      label.textContent = type === "user" ? "You" : "Amvexa";
+
+      const content = document.createElement("div");
+      content.textContent = text;
+
+      message.appendChild(label);
+      message.appendChild(content);
+
+      conversation.appendChild(message);
+
+      message.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest"
+      });
+    }
+
+    async function sendMessage() {
       const message = input.value.trim();
 
       if (!message) {
@@ -585,7 +677,51 @@
         return;
       }
 
-      showToast("Message received. AI brain will be connected next.");
+      addMessage("user", message);
+
+      input.value = "";
+      sendButton.disabled = true;
+      statusText.textContent = "Thinking...";
+
+      try {
+        const response = await fetch(`${API_URL}/api/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message: message
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        addMessage(
+          "assistant",
+          data.message || "I received your message."
+        );
+
+        statusText.textContent = "Online";
+
+      } catch (error) {
+
+        console.error("Amvexa connection error:", error);
+
+        addMessage(
+          "assistant",
+          "I couldn't reach my backend right now. Please try again."
+        );
+
+        statusText.textContent = "Connection issue";
+
+      } finally {
+        sendButton.disabled = false;
+        input.focus();
+      }
     }
 
     function showToast(message) {
