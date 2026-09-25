@@ -579,7 +579,7 @@
           <div class="activity-icon">✓</div>
           <div class="activity-text">
             <strong>Tasks</strong>
-            <span>No active tasks yet</span>
+            <span id="taskStatus">Checking tasks...</span>
           </div>
         </div>
 
@@ -601,7 +601,7 @@
 
       <button
         class="nav-item"
-        onclick="showToast('Task engine is coming after the AI brain.')"
+        onclick="refreshTaskStatus(); showToast('Task list refreshed.')"
       >
         <span class="nav-icon">✓</span>
         Tasks
@@ -687,6 +687,28 @@
       }
     }
 
+    async function refreshTaskStatus() {
+      const taskStatus = document.getElementById("taskStatus");
+      if (!taskStatus) return;
+
+      try {
+        const response = await fetch(`${API_URL}/api/tasks`);
+        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+
+        const data = await response.json();
+        const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+        const activeTasks = tasks.filter(task => task.status !== "done");
+
+        taskStatus.textContent = activeTasks.length
+          ? `${activeTasks.length} active ${activeTasks.length === 1 ? "task" : "tasks"}`
+          : tasks.length
+            ? "No active tasks"
+            : "No tasks yet";
+      } catch (error) {
+        taskStatus.textContent = "Task status unavailable";
+      }
+    }
+
     async function sendMessage() {
       const message = input.value.trim();
 
@@ -730,6 +752,14 @@
           refreshMemoryStatus();
         }
 
+        if (
+          data.intent === "task" ||
+          data.intent === "task_complete" ||
+          data.intent === "tasks"
+        ) {
+          refreshTaskStatus();
+        }
+
       } catch (error) {
 
         console.error("Amvexa connection error:", error);
@@ -759,6 +789,7 @@
     }
 
     refreshMemoryStatus();
+    refreshTaskStatus();
 
     input.addEventListener("keydown", function(event) {
       if (event.key === "Enter" && !event.shiftKey) {
