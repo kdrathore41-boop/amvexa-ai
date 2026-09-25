@@ -503,9 +503,11 @@
 
           <div class="command-tools">
             <button
+              id="voiceButton"
               class="tool"
-              onclick="showToast('Voice mode will be connected next.')"
-              aria-label="Voice"
+              onclick="toggleVoice()"
+              aria-label="Voice input"
+              title="Speak to Amvexa"
             >◉</button>
 
             <button
@@ -629,6 +631,82 @@
     const conversation = document.getElementById("conversation");
     const sendButton = document.getElementById("sendButton");
     const statusText = document.getElementById("statusText");
+    const voiceButton = document.getElementById("voiceButton");
+    let recognition = null;
+    let listening = false;
+    let speakReplies = true;
+
+    function setupVoice() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        if (voiceButton) voiceButton.disabled = true;
+        return;
+      }
+
+      recognition = new SpeechRecognition();
+      recognition.lang = "en-IN";
+      recognition.interimResults = false;
+      recognition.continuous = false;
+
+      recognition.onstart = () => {
+        listening = true;
+        voiceButton.textContent = "●";
+        statusText.textContent = "Listening...";
+        showToast("I'm listening...");
+      };
+
+      recognition.onresult = event => {
+        const transcript = event.results[0][0].transcript.trim();
+        if (transcript) {
+          input.value = transcript;
+          sendMessage();
+        }
+      };
+
+      recognition.onerror = event => {
+        listening = false;
+        voiceButton.textContent = "◉";
+        statusText.textContent = "Online";
+        showToast(event.error === "not-allowed"
+          ? "Microphone permission is required."
+          : "I couldn't hear that. Please try again.");
+      };
+
+      recognition.onend = () => {
+        listening = false;
+        voiceButton.textContent = "◉";
+        if (statusText.textContent === "Listening...") {
+          statusText.textContent = "Online";
+        }
+      };
+    }
+
+    function toggleVoice() {
+      if (!recognition) {
+        showToast("Voice input is not supported by this browser.");
+        return;
+      }
+
+      if (listening) {
+        recognition.stop();
+      } else {
+        try {
+          recognition.start();
+        } catch (error) {
+          showToast("Voice input is already starting.");
+        }
+      }
+    }
+
+    function speak(text) {
+      if (!speakReplies || !("speechSynthesis" in window)) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(String(text || ""));
+      utterance.lang = "en-IN";
+      utterance.rate = 0.96;
+      utterance.pitch = 1;
+      window.speechSynthesis.speak(utterance);
+    }
 
     function setCommand(text) {
       input.value = text;
@@ -741,10 +819,9 @@
 
         const data = await response.json();
 
-        addMessage(
-          "assistant",
-          data.message || "I received your message."
-        );
+        const assistantMessage = data.message || "I received your message.";
+        addMessage("assistant", assistantMessage);
+        speak(assistantMessage);
 
         statusText.textContent = "Online";
 
@@ -847,6 +924,7 @@
       }, 2500);
     }
 
+    setupVoice();
     refreshMemoryStatus();
     refreshTaskStatus();
 
