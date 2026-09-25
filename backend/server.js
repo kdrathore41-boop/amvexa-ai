@@ -1020,6 +1020,43 @@ app.delete("/api/tasks/:id", (req, res) => {
   });
 });
 
+/* ---------- Chat ---------- */
+
+app.post("/api/chat", async (req, res) => {
+  const message = String(req.body.message || "").trim();
+
+  if (!message) {
+    return res.status(400).json({
+      success: false,
+      error: "Message is required"
+    });
+  }
+
+  try {
+    const result = await agent(message, true);
+
+    res.json({
+      success: result.success !== false,
+      assistant: "Amvexa",
+      version: VERSION,
+      message: result.response,
+      intent: result.understanding?.intent || "conversation",
+      mode: result.mode || "conversation",
+      execution: result.execution || null,
+      verification: result.verification || null,
+      nextAction: result.nextAction || nextAction()
+    });
+  } catch (error) {
+    console.error("Chat error:", error);
+
+    res.status(500).json({
+      success: false,
+      assistant: "Amvexa",
+      error: "Amvexa could not process the message safely."
+    });
+  }
+});
+
 app.use((err, req, res, next) => {
   console.error("Amvexa server error:", err);
   if (res.headersSent) return next(err);
