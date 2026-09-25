@@ -279,7 +279,7 @@ function detectIntent(message) {
   }
 
   if (
-    /\b(add|create|make|set)\s+(a\s+)?(task|todo)\b/.test(text)
+    /\b(add|create|creat|make|set|new)\s+(a\s+)?(task|tast|todo)\b/.test(text)
   ) {
     return "planning";
   }
@@ -317,7 +317,7 @@ function extractMemory(message) {
 function taskFromMessage(message) {
   return message
     .replace(
-      /^\s*(add|create|make|set)\s+(a\s+)?(task|todo)\s*[:,-]?\s*/i,
+      /^\s*(add|create|creat|make|set|new)\s+(a\s+)?(task|tast|todo)\s*[:,-]?\s*/i,
       ""
     )
     .trim();
