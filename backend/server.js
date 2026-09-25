@@ -677,7 +677,11 @@ async function agent(message, autoExecute = true) {
     verification,
     nextAction: nextAction(),
     response: execution.success
-      ? `Done. I executed ${plan.tool.replace(/_/g, " ")} and verified the result.`
+      ? plan.tool === "recall_memory"
+        ? (execution.memories?.length
+          ? execution.memories.map((m, i) => `${i + 1}. ${m.content}`).join("\n")
+          : "I don't have a matching memory yet.")
+        : `Done. I executed ${plan.tool.replace(/_/g, " ")} and verified the result.`
       : execution.error || "The action could not be completed."
   };
 }
