@@ -601,7 +601,7 @@
 
       <button
         class="nav-item"
-        onclick="refreshTaskStatus(); showToast('Task list refreshed.')"
+        onclick="openTasks()"
       >
         <span class="nav-icon">✓</span>
         Tasks
@@ -710,7 +710,67 @@
     }
 
     async function sendMessage() {
-      const message = input.value.trim();
+      c
+    function openTasks() {
+      const taskStatus = document.getElementById("taskStatus");
+      if (taskStatus) refreshTaskStatus();
+
+      const existing = document.getElementById("taskPanel");
+      if (existing) existing.remove();
+
+      const panel = document.createElement("section");
+      panel.id = "taskPanel";
+      panel.className = "conversation show";
+      panel.style.marginTop = "18px";
+      panel.innerHTML = `
+        <div class="message assistant">
+          <span class="message-label">Tasks</span>
+          <div id="taskList">Loading tasks...</div>
+        </div>
+      `;
+      document.querySelector("main").appendChild(panel);
+
+      fetch(`${API_URL}/api/tasks`)
+        .then(response => {
+          if (!response.ok) throw new Error("Task request failed");
+          return response.json();
+        })
+        .then(data => {
+          const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+          const list = document.getElementById("taskList");
+          if (!list) return;
+
+          if (!tasks.length) {
+            list.textContent = "No tasks yet.";
+            return;
+          }
+
+          list.innerHTML = tasks.map(task => {
+            const done = task.status === "done";
+            return `
+              <div style="padding:12px 0;border-bottom:1px solid var(--border);">
+                <div style="font-size:14px;line-height:1.5;">${done ? "✓ " : "○ "}${escapeHtml(task.title)}</div>
+                <div style="color:var(--muted);font-size:11px;margin-top:4px;">
+                  ${done ? "Completed" : "Open"} · ${escapeHtml(task.priority || "normal")}
+                </div>
+              </div>
+            `;
+          }).join("");
+        })
+        .catch(() => {
+          const list = document.getElementById("taskList");
+          if (list) list.textContent = "Task list unavailable.";
+        });
+
+      panel.scrollIntoView({behavior:"smooth", block:"start"});
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      }[char]));
+    }
+onst message = input.value.trim();
 
       if (!message) {
         showToast("Tell Amvexa what you need.");
