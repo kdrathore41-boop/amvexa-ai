@@ -975,4 +975,61 @@ app.patch("/api/tasks/:id", (req, res) => {
   }
 
   if (req.body.title !== undefined) {
-    task.title = String
+    task.title = String(req.body.title).trim();
+  }
+
+  if (req.body.priority !== undefined) {
+    task.priority = ["high", "normal", "low"].includes(req.body.priority)
+      ? req.body.priority
+      : task.priority;
+  }
+
+  if (req.body.status !== undefined) {
+    task.status = req.body.status === "done" ? "done" : "open";
+    if (task.status === "done" && !task.completedAt) {
+      task.completedAt = new Date().toISOString();
+    }
+    if (task.status !== "done") delete task.completedAt;
+  }
+
+  writeJson(FILES.tasks, tasks);
+  syncGoals();
+
+  res.json({
+    success: true,
+    task
+  });
+});
+
+app.delete("/api/tasks/:id", (req, res) => {
+  const index = tasks.findIndex(t => t.id === req.params.id);
+
+  if (index === -1) {
+    return res.status(404).json({
+      success: false,
+      error: "Task not found"
+    });
+  }
+
+  const [task] = tasks.splice(index, 1);
+  writeJson(FILES.tasks, tasks);
+
+  res.json({
+    success: true,
+    task
+  });
+});
+
+app.use((err, req, res, next) => {
+  console.error("Amvexa server error:", err);
+  if (res.headersSent) return next(err);
+
+  res.status(500).json({
+    success: false,
+    error: "Amvexa backend error"
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`Amvexa backend running on port ${PORT} | Brain ${VERSION} | Release ${RELEASE}`);
+});
