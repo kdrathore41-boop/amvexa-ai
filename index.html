@@ -571,7 +571,7 @@
           <div class="activity-icon">◇</div>
           <div class="activity-text">
             <strong>Memory system</strong>
-            <span>Waiting for your first memory</span>
+            <span id="memoryStatus">Checking memory...</span>
           </div>
         </div>
 
@@ -668,6 +668,25 @@
       });
     }
 
+    async function refreshMemoryStatus() {
+      const memoryStatus = document.getElementById("memoryStatus");
+      if (!memoryStatus) return;
+
+      try {
+        const response = await fetch(`${API_URL}/api/memory`);
+        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+
+        const data = await response.json();
+        const memories = Array.isArray(data.memories) ? data.memories : [];
+
+        memoryStatus.textContent = memories.length
+          ? `${memories.length} ${memories.length === 1 ? "memory" : "memories"} stored`
+          : "No memories saved yet";
+      } catch (error) {
+        memoryStatus.textContent = "Memory status unavailable";
+      }
+    }
+
     async function sendMessage() {
       const message = input.value.trim();
 
@@ -707,6 +726,10 @@
 
         statusText.textContent = "Online";
 
+        if (data.intent === "memory" || data.intent === "recall") {
+          refreshMemoryStatus();
+        }
+
       } catch (error) {
 
         console.error("Amvexa connection error:", error);
@@ -734,6 +757,8 @@
         toast.classList.remove("show");
       }, 2500);
     }
+
+    refreshMemoryStatus();
 
     input.addEventListener("keydown", function(event) {
       if (event.key === "Enter" && !event.shiftKey) {
