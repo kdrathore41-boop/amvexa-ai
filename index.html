@@ -677,7 +677,7 @@
         if (!response.ok) throw new Error(`Server returned ${response.status}`);
 
         const data = await response.json();
-        const memories = Array.isArray(data.memories) ? data.memories : [];
+        const memories = Array.isArray(data.memory) ? data.memory : [];
 
         memoryStatus.textContent = memories.length
           ? `${memories.length} ${memories.length === 1 ? "memory" : "memories"} stored`
