@@ -261,7 +261,7 @@ function detectIntent(message) {
   }
 
   if (
-    /\b(what do you remember|what do you know about me|recall|yaad hai|mere baare mein)\b/.test(text)
+    /\b(what do you remember|what do you know about me|what is my name|what's my name|who am i|what are you to me|recall|yaad hai|mere baare mein)\b/.test(text)
   ) {
     return "recall";
   }
