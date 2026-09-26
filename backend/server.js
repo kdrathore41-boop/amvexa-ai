@@ -260,6 +260,7 @@ function detectIntent(message) {
 
   if (
     /\b(remember|save|store|note|yaad rakh)\b/.test(text) ||
+    /^\s*(mera naam|my name)\s+(hai|is)\b/i.test(text) ||
     /\b(hamesha|always)\b.*\b(hindi|हिंदी)\b/.test(text) ||
     /\b(hindi|हिंदी)\b.*\b(hamesha|always)\b/.test(text)
   ) {
@@ -320,6 +321,9 @@ function detectIntent(message) {
 }
 
 function extractMemory(message) {
+  const identity = String(message || "").match(/^\s*(?:mera naam|my name)\s+(?:hai|is)\s+(.+?)\s*$/i);
+  if (identity) return "User ka naam " + identity[1].trim();
+
   return message
     .replace(
       /^\s*(remember|save|store|note|yaad rakh)\s*(this|that|ye|yah|ki)?\s*[:,-]?\s*/i,
@@ -403,7 +407,7 @@ function conversationContext(limit = 12) {
 async function generateAIResponse(message, extraContext = "", useWeb = false) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { success: false, error: "AI provider is not configured" };
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
   const system = [
     "You are Amvexa, a personal AI assistant for one user.",
     "You are not a command parser. Hold a natural, continuous conversation.",
