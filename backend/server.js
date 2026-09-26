@@ -176,7 +176,14 @@ function extractMemory(message) {
   return message.replace(/^\s*(remember|save|store|note|yaad rakh(?:o|na)?)\s*(this|that|ye|yah|ki)?\s*[:,-]?\s*/i, "").trim();
 }
 
-function taskFromMessage(message) { return message.replace(/^\s*(?:ek\s+)?(?:add|create|creat|make|set|new)\s+(?:a\s+)?(?:task|tast|todo)\s*(?:add\s+)?(?:karo|karna|do)?\s*[:,-]?\s*/i, "").replace(/^\s*(?:task|tast|todo)\s+(?:add|create|bana)\s+(?:karo|karna|do)\s*[:,-]?\s*/i, "").trim(); }
+function taskFromMessage(message) {
+  let title = String(message || "").trim();
+  title = title.replace(/^\s*[“"']?\s*(?:ek\s+)?(?:task|tast|todo)\s+(?:add|create|bana)\s+(?:karo|karna|do)\b\s*[,;:\-]?\s*/i, "");
+  title = title.replace(/^\s*[“"']?\s*(?:add|create|creat|make|set|new)\s+(?:a\s+)?(?:task|tast|todo)\b\s*(?:karo|karna|do)?\s*[,;:\-]?\s*/i, "");
+  title = title.replace(/[”"']\s*$/, "").trim();
+  return title;
+}
+
 function nextAction() { const high = tasks.find(t => t.status !== "done" && t.priority === "high"); if (high) return { type: "task", title: high.title, taskId: high.id, priority: high.priority }; const open = tasks.find(t => t.status !== "done"); if (open) return { type: "task", title: open.title, taskId: open.id, priority: open.priority }; return { type: "setup", title: "Create your first task or goal" }; }
 function dailyPlan() { return { generatedAt: new Date().toISOString(), tasks: tasks.filter(t => t.status !== "done").sort((a,b) => ({high:0,normal:1,low:2}[a.priority] ?? 1) - ({high:0,normal:1,low:2}[b.priority] ?? 1)).slice(0,5), nextAction: nextAction() }; }
 function contextSummary() { return { memoryCount: memory.length, taskCount: tasks.length, openTasks: tasks.filter(t => t.status !== "done").length, goalCount: goals.length, knowledgeCount: knowledge.length }; }
