@@ -7,7 +7,7 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const ROOT = path.join(__dirname, "..");
 const VERSION = "3.6";
-const RELEASE = "1.0.2";
+const RELEASE = "1.0.3";
 
 const FILES = {
   memory: path.join(__dirname, "memory.json"),
@@ -294,8 +294,8 @@ function detectIntent(message) {
 
   if (
     /\b(plan|schedule|organize)\b/.test(text) ||
-    /(aaj|aj|today).*(kaam|tasks?|todo|plan)/.test(text) ||
-    /(daily|din).*(plan|kaam)/.test(text)
+    /(aaj|aj|today).*(kaam|work|tasks?|todo|plan)/.test(text) ||
+    /(daily|din).*(plan|kaam|work)/.test(text)
   ) {
     return "planning";
   }
@@ -591,7 +591,7 @@ function localBrain(message) {
   const intent = detectIntent(message);
 
   if (intent === "greeting") {
-    return "Good to see you. I'm Amvexa — ready to think, plan and execute.";
+    return "Namaste! Main Amvexa hoon. Aap batayiye, main kya karun?";
   }
 
   if (intent === "memory") {
@@ -602,7 +602,7 @@ function localBrain(message) {
     const found = memorySearch(message);
 
     if (!found.length) {
-      return "I don't have a matching memory yet.";
+      return "Abhi mujhe matching memory nahi mili.";
     }
 
     return found
@@ -614,7 +614,7 @@ function localBrain(message) {
     const open = tasks.filter(t => t.status !== "done");
 
     if (!open.length) {
-      return "You have no open tasks.";
+      return "Aaj ke liye koi open task nahi hai.";
     }
 
     return open
@@ -626,7 +626,7 @@ function localBrain(message) {
     return "I can research a public web source when web intelligence is connected.";
   }
 
-  return "I understand your message. My local intelligence layer is active and ready for the next instruction.";
+  return "Samajh gaya. Aap apna kaam ya sawaal batayiye, main uske hisaab se help karunga.";
 }
 
 async function agent(message, autoExecute = true) {
@@ -685,7 +685,7 @@ async function agent(message, autoExecute = true) {
         ? (execution.memories?.length
           ? execution.memories.map((m, i) => `${i + 1}. ${m.content}`).join("\n")
           : "I don't have a matching memory yet.")
-        : `Done. I executed ${plan.tool.replace(/_/g, " ")} and verified the result.`
+        : (plan.tool === "get_tasks" ? (execution.tasks && execution.tasks.filter(t => t.status !== "done").length ? execution.tasks.filter(t => t.status !== "done").map((t, i) => (i + 1) + ". " + t.title).join("\n") : "Aaj ke liye koi open task nahi hai.") : plan.tool === "get_daily_plan" ? (execution.plan && execution.plan.tasks && execution.plan.tasks.length ? execution.plan.tasks.map((t, i) => (i + 1) + ". " + t.title).join("\n") : "Aaj ke liye koi open task nahi hai.") : "Ho gaya. " + plan.tool.replace(/_/g, " ") + " execute karke result verify kiya.")
       : execution.error || "The action could not be completed."
   };
 }
