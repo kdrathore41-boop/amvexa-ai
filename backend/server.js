@@ -7,7 +7,7 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const ROOT = path.join(__dirname, "..");
 const VERSION = "3.6";
-const RELEASE = "1.0.1";
+const RELEASE = "1.0.2";
 
 const FILES = {
   memory: path.join(__dirname, "memory.json"),
@@ -273,7 +273,9 @@ function detectIntent(message) {
   }
 
   if (
-    /\b(show|list|my|mere)\b.*\b(tasks?|todos?)\b/.test(text)
+    /\b(show|list|my|mere)\b.*\b(tasks?|todos?)\b/.test(text) ||
+    /(mere|aaj|aj|today|jaruri|zaroori|important|zaroori kaam|jaruri kaam).*(kaam|task|todo)/.test(text) ||
+    /(kaam|tasks?|todos?).*(batao|dikhao|dikhaiye|bataiye|show|list)/.test(text)
   ) {
     return "tasks";
   }
@@ -291,7 +293,9 @@ function detectIntent(message) {
   }
 
   if (
-    /\b(plan|schedule|organize)\b/.test(text)
+    /\b(plan|schedule|organize)\b/.test(text) ||
+    /(aaj|aj|today).*(kaam|tasks?|todo|plan)/.test(text) ||
+    /(daily|din).*(plan|kaam)/.test(text)
   ) {
     return "planning";
   }
