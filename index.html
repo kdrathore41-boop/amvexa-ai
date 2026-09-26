@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#07111f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
   <title>Amvexa — Personal AI Assistant</title>
 
   <style>
@@ -635,6 +639,7 @@
     let recognition = null;
     let listening = false;
     let speakReplies = true;
+    let voiceCommand = false;
 
     function setupVoice() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -659,6 +664,7 @@
         const transcript = event.results[0][0].transcript.trim();
         if (transcript) {
           input.value = transcript;
+          voiceCommand = true;
           sendMessage();
         }
       };
@@ -819,11 +825,12 @@
 
         const data = await response.json();
 
-        const assistantMessage = data.message || "I received your message.";
+        const assistantMessage = data.message || "मुझे आपका संदेश मिल गया।";
         addMessage("assistant", assistantMessage);
         speak(assistantMessage);
 
         statusText.textContent = "Online";
+        voiceCommand = false;
 
         const intent = data?.data?.understanding?.intent;
 
@@ -928,6 +935,13 @@
     }
 
     setupVoice();
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
+      });
+    }
+
     refreshMemoryStatus();
     refreshTaskStatus();
 
