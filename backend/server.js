@@ -280,7 +280,7 @@ function detectIntent(message) {
   }
 
   if (
-    /\b(play|listen|sunao|sunaao|bajao|music|song|songs|gaana|gana|romantic|playlist|youtube)\b/.test(text)
+    /\b(play|listen|bajao|music|song|songs|gaana|gana|romantic|playlist|youtube)\b/.test(text) || ( /\b(sunao|sunaao)\b/.test(text) && /\b(gaana|gana|song|songs|music|romantic|playlist)\b/.test(text) )
   ) {
     return "music";
   }
