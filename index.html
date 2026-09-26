@@ -853,7 +853,7 @@
 
         const data = await response.json();
 
-        const assistantMessage = data.message || "मुझे आपका संदेश मिल गया।";
+        const assistantMessage = data.response || data.message || "मुझे आपका संदेश मिल गया।";
         const action = data?.data?.execution?.action;
 
         addMessage("assistant", assistantMessage);
@@ -892,7 +892,7 @@
           }, Math.max(900, Math.min(2500, assistantMessage.length * 35)));
         }
 
-        const intent = data?.data?.understanding?.intent;
+        const intent = data?.tool === "save_memory" ? "memory" : data?.tool === "recall_memory" ? "recall" : data?.data?.understanding?.intent;
 
         if (intent === "memory" || intent === "recall") {
           refreshMemoryStatus();
