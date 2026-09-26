@@ -275,6 +275,12 @@ function detectIntent(message) {
     return "planning";
   }
 
+  if (
+    /\b(play|listen|sunao|sunaao|bajao|music|song|songs|gaana|gana|romantic|playlist|youtube)\b/.test(text)
+  ) {
+    return "music";
+  }
+
   if (/\b(research|search|latest|investigate|find out)\b/.test(text)) {
     return "research";
   }
