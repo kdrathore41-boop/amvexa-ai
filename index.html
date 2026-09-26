@@ -644,7 +644,7 @@
       }
 
       recognition = new SpeechRecognition();
-      recognition.lang = "en-IN";
+      recognition.lang = "hi-IN";
       recognition.interimResults = false;
       recognition.continuous = false;
 
@@ -702,7 +702,7 @@
       if (!speakReplies || !("speechSynthesis" in window)) return;
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(String(text || ""));
-      utterance.lang = "en-IN";
+      utterance.lang = "hi-IN";
       utterance.rate = 0.96;
       utterance.pitch = 1;
       window.speechSynthesis.speak(utterance);
@@ -825,14 +825,17 @@
 
         statusText.textContent = "Online";
 
-        if (data.intent === "memory" || data.intent === "recall") {
+        const intent = data?.data?.understanding?.intent;
+
+        if (intent === "memory" || intent === "recall") {
           refreshMemoryStatus();
         }
 
         if (
-          data.intent === "task" ||
-          data.intent === "task_complete" ||
-          data.intent === "tasks"
+          intent === "task" ||
+          intent === "task_complete" ||
+          intent === "tasks" ||
+          intent === "planning"
         ) {
           refreshTaskStatus();
         }
