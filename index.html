@@ -772,7 +772,7 @@
         if (!response.ok) return;
         const data = await response.json();
         if (!data.shouldSpeak || !data.message) return;
-        const key = data.message + "|" + String(data.at || "").slice(0, 13);
+        const key = "proactive|" + new Date().toISOString().slice(0, 10) + "|" + data.message;
         if (sessionStorage.getItem("amvexa_proactive") === key) return;
         sessionStorage.setItem("amvexa_proactive", key);
         addMessage("assistant", data.message);
