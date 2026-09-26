@@ -591,7 +591,10 @@ function localBrain(message) {
   const intent = detectIntent(message);
 
   if (/hindi.*(nahi|nahin).*aati|hindi.*samajh|hindi.*aati.*kya/.test(message.toLowerCase())) {
-    return "Aati hai. Aap Hindi mein bilkul baat kijiye.";\n  }\n\n  if (intent === "greeting") {
+    return "Aati hai. Aap Hindi mein bilkul baat kijiye.";
+  }
+
+  if (intent === "greeting") {
     return "Namaste! Main Amvexa hoon. Aap batayiye, main kya karun?";
   }
 
