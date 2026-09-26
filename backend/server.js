@@ -259,7 +259,7 @@ function detectIntent(message) {
   const text = message.toLowerCase().trim();
 
   if (
-    /\b(remember|save|store|note|yaad rakh)\b/.test(text) ||
+    /\b(remember|save|store|note|yaad rakh(?:o|na)?)\b/.test(text) ||
     /^\s*(mera naam|my name)\s+(hai|is)\b/i.test(text) ||
     /\b(hamesha|always)\b.*\b(hindi|हिंदी)\b/.test(text) ||
     /\b(hindi|हिंदी)\b.*\b(hamesha|always)\b/.test(text)
@@ -321,12 +321,12 @@ function detectIntent(message) {
 }
 
 function extractMemory(message) {
-  const identity = String(message || "").match(/^\s*(?:mera naam|my name)\s+(?:hai|is)\s+(.+?)\s*$/i);
+  const identity = String(message || "").match(/\b(?:mera naam|my name)\s+(.+?)\s+(?:hai|is)\b/i);
   if (identity) return "User ka naam " + identity[1].trim();
 
   return message
     .replace(
-      /^\s*(remember|save|store|note|yaad rakh)\s*(this|that|ye|yah|ki)?\s*[:,-]?\s*/i,
+      /^\s*(remember|save|store|note|yaad rakh(?:o|na)?)\s*(this|that|ye|yah|ki)?\s*[:,-]?\s*/i,
       ""
     )
     .trim();
