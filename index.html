@@ -826,16 +826,33 @@
         const data = await response.json();
 
         const assistantMessage = data.message || "मुझे आपका संदेश मिल गया।";
+        const action = data?.data?.execution?.action;
+
         addMessage("assistant", assistantMessage);
         speak(assistantMessage);
 
-        const action = data?.data?.execution?.action;
         if (action?.type === "music" && action.url) {
-          // Popup blockers can reject window.open after an async fetch.
-          // Navigate directly so a music command actually opens the results.
+          const musicLink = document.createElement("a");
+          musicLink.href = action.url;
+          musicLink.target = "_blank";
+          musicLink.rel = "noopener noreferrer";
+          musicLink.textContent = "🎵 मेरी Music Playlist खोलें";
+          musicLink.style.display = "inline-block";
+          musicLink.style.marginTop = "10px";
+          musicLink.style.fontWeight = "700";
+          musicLink.style.textDecoration = "underline";
+
+          const lastMessage = conversation.lastElementChild;
+          if (lastMessage) {
+            const content = lastMessage.querySelector("div:last-child");
+            if (content) content.appendChild(musicLink);
+          }
+
+          // Try automatic opening as well; the visible link remains available
+          // if the mobile browser blocks automatic navigation.
           setTimeout(() => {
             window.location.href = action.url;
-          }, 250);
+          }, 300);
         }
 
         statusText.textContent = "Online";
