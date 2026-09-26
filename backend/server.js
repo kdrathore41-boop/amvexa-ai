@@ -849,9 +849,15 @@ async function agent(message, autoExecute = true) {
   }
 
   if (plan.tool === "recall_memory") {
-    response = execution.memories?.length
-      ? execution.memories.map((m, i) => `${i + 1}. ${m.content}`).join("\n")
-      : "Abhi mujhe matching memory nahi mili.";
+    if (/\b(mera naam|my name|what is my name|what\x27s my name)\b/i.test(message)) {
+      const found = execution.memories?.find(m => /\b(?:user ka naam|mera naam|my name|name|naam)\b/i.test(m.content));
+      const name = found?.content?.match(/^User ka naam\s+(.+)$/i)?.[1]?.trim();
+      response = name ? `Aapka naam ${name} hai.` : "Abhi mujhe aapka naam yaad nahi hai.";
+    } else {
+      response = execution.memories?.length
+        ? execution.memories.map((m, i) => `${i + 1}. ${m.content}`).join("\n")
+        : "Abhi mujhe matching memory nahi mili.";
+    }
   }
 
   if (plan.tool === "web_search") {
