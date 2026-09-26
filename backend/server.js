@@ -742,9 +742,9 @@ async function agent(message, autoExecute = true) {
   const plan = planTool(message);
 
   if (!plan.tool) {
-    addConversation("user", message);
     const ai = await buildAssistantResponse(message, null);
     const response = ai.success ? ai.text : localBrain(message);
+    addConversation("user", message);
     addConversation("assistant", response);
     return {
       success: true,
@@ -779,7 +779,6 @@ async function agent(message, autoExecute = true) {
   const verification = verifyTool(plan.tool, execution);
 
   let response = localBrain(message);
-  addConversation("user", message);
 
   if (plan.tool === "music_search") {
     response = "Bilkul 🎵 Aapki personal music playlist khol raha hoon.";
@@ -817,6 +816,7 @@ async function agent(message, autoExecute = true) {
     if (ai.success) response = ai.text;
   }
 
+  addConversation("user", message);
   addConversation("assistant", response);
 
   return {
