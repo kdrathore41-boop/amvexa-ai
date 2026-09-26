@@ -260,7 +260,7 @@ function detectIntent(message) {
 
   if (
     /\b(remember|save|store|note|yaad rakh(?:o|na)?)\b/.test(text) ||
-    /^\s*(mera naam|my name)\s+(hai|is)\b/i.test(text) ||
+    /^\s*(mera naam|my name)\s+(?!kya\b|what\b).+/i.test(text) ||
     /\b(hamesha|always)\b.*\b(hindi|हिंदी)\b/.test(text) ||
     /\b(hindi|हिंदी)\b.*\b(hamesha|always)\b/.test(text)
   ) {
@@ -323,7 +323,7 @@ function detectIntent(message) {
 }
 
 function extractMemory(message) {
-  const identity = String(message || "").match(/\b(?:mera naam|my name)\s+(.+?)(?:\s+(?:hai|is|h)\b|\s+(?:yaad rakh|yaad rakho|yaad rakhna)\b|$)/i);
+  const identity = String(message || "").match(/^\s*(?:mera naam|my name)\s+(.+?)(?:\s+(?:hai|is|h)\b|\s+(?:yaad rakh|yaad rakho|yaad rakhna)\b|$)/i);
   if (identity) return "User ka naam " + identity[1].trim();
 
   return message
