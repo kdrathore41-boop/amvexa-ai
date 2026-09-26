@@ -383,7 +383,11 @@ async function webSearch(query) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: apiKey,
-        query: String(query || "").trim(),
+        query: String(query || "").trim() + (
+          /\\b(news|khabar|today|aaj|latest|current|recent)\\b/i.test(String(query || ""))
+            ? " Give the answer in Hindi. For each story, include the source name and publication date when available."
+            : " Answer in Hindi."
+        ),
         search_depth: "advanced",
         max_results: 6,
         include_answer: true,
@@ -400,7 +404,8 @@ async function webSearch(query) {
         title: item.title || "",
         url: item.url || "",
         content: String(item.content || "").slice(0, 2500),
-        score: item.score
+        score: item.score,
+        published_date: item.published_date || item.publishedAt || item.date || ""
       })) : []
     };
   } catch (error) {
@@ -422,7 +427,8 @@ function formatWebResponse(result) {
     lines.push("", "Sources:");
     result.results.forEach((item, index) => {
       lines.push((index + 1) + ". " + (item.title || item.url));
-      if (item.url) lines.push("   " + item.url);
+      if (item.published_date) lines.push("   Date: " + item.published_date);
+      if (item.url) lines.push("   Source: " + item.url);
     });
   }
   return lines.join("\n");
