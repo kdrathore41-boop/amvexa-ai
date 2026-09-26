@@ -6,8 +6,8 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 10000;
 const ROOT = path.join(__dirname, "..");
-const VERSION = "3.6";
-const RELEASE = "1.0.5";
+const VERSION = "4.0";
+const RELEASE = "1.1.0";
 
 const FILES = {
   memory: path.join(__dirname, "memory.json"),
@@ -15,7 +15,8 @@ const FILES = {
   goals: path.join(__dirname, "goals.json"),
   context: path.join(__dirname, "context.json"),
   audit: path.join(__dirname, "audit.json"),
-  knowledge: path.join(__dirname, "knowledge.json")
+  knowledge: path.join(__dirname, "knowledge.json"),
+  conversation: path.join(__dirname, "conversation.json")
 };
 
 const MAX = {
@@ -23,7 +24,8 @@ const MAX = {
   tasks: 100,
   goals: 50,
   audit: 200,
-  knowledge: 100
+  knowledge: 100,
+  conversation: 30
 };
 
 app.use(cors());
@@ -106,6 +108,7 @@ let knowledge = Array.isArray(readJson(FILES.knowledge, []))
   : [];
 
 let context = readJson(FILES.context, {});
+let conversation = Array.isArray(readJson(FILES.conversation, [])) ? readJson(FILES.conversation, []) : [];
 
 function saveAll() {
   writeJson(FILES.memory, memory.slice(-MAX.memory));
@@ -114,6 +117,7 @@ function saveAll() {
   writeJson(FILES.audit, audit.slice(-MAX.audit));
   writeJson(FILES.knowledge, knowledge.slice(-MAX.knowledge));
   writeJson(FILES.context, context);
+  writeJson(FILES.conversation, conversation.slice(-MAX.conversation));
 }
 
 function logAction(tool, args, result) {
@@ -375,6 +379,53 @@ function contextSummary() {
     goalCount: goals.length,
     knowledgeCount: knowledge.length
   };
+}
+
+function addConversation(role, content) {
+  conversation.push({ id: `turn_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, role, content: String(content || "").slice(0, 5000), at: new Date().toISOString() });
+  conversation = conversation.slice(-MAX.conversation);
+  writeJson(FILES.conversation, conversation);
+}
+
+function conversationContext(limit = 12) {
+  return conversation.slice(-limit).map(turn => ({ role: turn.role === "assistant" ? "model" : "user", parts: [{ text: turn.content }] }));
+}
+
+async function generateAIResponse(message, extraContext = "") {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { success: false, error: "AI provider is not configured" };
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const system = [
+    "You are Amvexa, a personal AI assistant for one user.",
+    "You are not a command parser. Hold a natural, continuous conversation.",
+    "Understand Hindi, Hinglish and English and normally reply in natural Hindi/Hinglish unless the user asks otherwise.",
+    "Be concise but thoughtful. Do not repeat generic greetings or ask what you can do after every message.",
+    "Use recent conversation context and relevant remembered facts.",
+    "Never claim an action happened unless the execution result confirms it.",
+    "When current information is needed, use supplied web research rather than inventing facts.",
+    "You may suggest the next useful step when appropriate, without being pushy.", extraContext
+  ].filter(Boolean).join("\n");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents: [...conversationContext(), { role: "user", parts: [{ text: message }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 700 } }), signal: controller.signal
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { success: false, error: data?.error?.message || "AI provider request failed" };
+    const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("").trim();
+    return text ? { success: true, text } : { success: false, error: "AI provider returned no response" };
+  } catch (error) {
+    return { success: false, error: error?.name === "AbortError" ? "AI provider timed out" : "AI provider unavailable" };
+  } finally { clearTimeout(timeout); }
+}
+
+async function buildAssistantResponse(message, toolResult) {
+  const memoryContext = memorySearch(message, 5).map(m => m.content).join("\n");
+  const webContext = toolResult?.success && toolResult?.results?.length ? toolResult.results.slice(0, 6).map(r => `${r.title}\n${r.content}\n${r.url}`).join("\n\n") : "";
+  const extra = [memoryContext ? `Relevant remembered facts:\n${memoryContext}` : "", webContext ? `Fresh web research:\n${webContext}` : ""].filter(Boolean).join("\n\n");
+  return generateAIResponse(message, extra);
 }
 
 async function webSearch(query) {
@@ -691,6 +742,10 @@ async function agent(message, autoExecute = true) {
   const plan = planTool(message);
 
   if (!plan.tool) {
+    addConversation("user", message);
+    const ai = await buildAssistantResponse(message, null);
+    const response = ai.success ? ai.text : localBrain(message);
+    addConversation("assistant", response);
     return {
       success: true,
       agent: "Amvexa",
@@ -701,7 +756,7 @@ async function agent(message, autoExecute = true) {
       execution: null,
       verification: null,
       nextAction: nextAction(),
-      response: localBrain(message)
+      response
     };
   }
 
@@ -724,6 +779,7 @@ async function agent(message, autoExecute = true) {
   const verification = verifyTool(plan.tool, execution);
 
   let response = localBrain(message);
+  addConversation("user", message);
 
   if (plan.tool === "music_search") {
     response = "Bilkul 🎵 Aapki personal music playlist khol raha hoon.";
@@ -754,8 +810,14 @@ async function agent(message, autoExecute = true) {
   }
 
   if (plan.tool === "web_search") {
-    response = formatWebResponse(execution);
+    const ai = await buildAssistantResponse(message, execution);
+    response = ai.success ? ai.text : formatWebResponse(execution);
+  } else if (plan.tool !== "music_search" && plan.tool !== "save_memory" && plan.tool !== "recall_memory" && plan.tool !== "get_tasks" && plan.tool !== "get_daily_plan") {
+    const ai = await buildAssistantResponse(message, execution);
+    if (ai.success) response = ai.text;
   }
+
+  addConversation("assistant", response);
 
   return {
     success: execution.success === true && verification.verified === true,
@@ -806,6 +868,21 @@ app.post("/api/chat", async (req, res) => {
       error: "Unable to process message"
     });
   }
+});
+
+app.get("/api/conversation", (req, res) => {
+  res.json({ success: true, conversation: conversation.slice(-MAX.conversation) });
+});
+
+app.get("/api/proactive", (req, res) => {
+  const openTasks = tasks.filter(t => t.status !== "done");
+  const hour = new Date().getHours();
+  let message = "";
+  if (openTasks.length) {
+    const first = openTasks.find(t => t.priority === "high") || openTasks[0];
+    message = hour < 12 ? `Good morning. Aaj ka important kaam: ${first.title}` : `Ek important kaam abhi pending hai: ${first.title}`;
+  } else if (hour < 12) message = "Good morning. Main online hoon. Aaj jo important hai, use saath mein organize kar sakte hain.";
+  res.json({ success: true, shouldSpeak: Boolean(message), message, at: new Date().toISOString() });
 });
 
 app.get("/api/context", (req, res) => {
