@@ -170,6 +170,21 @@ function detectIntent(message) {
   return "conversation";
 }
 
+function detectIntent(message) {
+  const text = message.toLowerCase().trim();
+  if (/\b(remember|save|store|note|yaad rakh(?:o|na)?)\b/.test(text) || /\bmera naam\s+.+?(?:hai|yaad rakh)/i.test(text) || /\b(my name is)\b/i.test(text)) return "memory";
+  if (/\b(what do you remember|what do you know about me|what is my name|what's my name|who am i|what are you to me|recall|yaad hai|mere baare mein)\b/.test(text) || /^\s*(mera naam|my name)\s+(kya|what)\s*(hai|is|h)?\b/i.test(text) || /^\s*(main|mein)\s+kaun\s+(hoon|hun|hu)\b/i.test(text)) return "recall";
+  if (/\b(complete|finish|done|mark)\b.*\b(task|todo)\b/.test(text)) return "task_complete";
+  if (/\b(show|list|my|mere)\b.*\b(tasks?|todos?)\b/.test(text) || /(mere|aaj|aj|today|jaruri|zaroori|important).*(kaam|task|todo)/.test(text) || /(kaam|tasks?|todos?).*(batao|dikhao|dikhaiye|bataiye|show|list)/.test(text)) return "tasks";
+  if (/\b(add|create|creat|make|set|new)\s+(a\s+)?(task|tast|todo)\b/.test(text) || /\btask\s+(add|create|bana)\s+(karo|karna|do)\b/.test(text) || /\bek\s+task\s+add\s+karo\b/.test(text)) return "planning";
+  if (/\b(play|listen|bajao|music|song|songs|gaana|gana|romantic|playlist|youtube)\b/.test(text) || (/\b(sunao|sunaao)\b/.test(text) && /\b(gaana|gana|song|songs|music|romantic|playlist)\b/.test(text))) return "music";
+  if (/\b(research|search|latest|investigate|find out)\b/.test(text)) return "research";
+  if (/\b(plan|schedule|organize)\b/.test(text) || /(aaj|aj|today).*(kaam|work|tasks?|todo|plan)/.test(text) || /(daily|din).*(plan|kaam|work)/.test(text)) return "planning";
+  if (/\b(hello|hi|hey|namaste)\b/.test(text)) return "greeting";
+  if (/\b(what|why|how|when|where|who|which|can you|do you|are you|tum|aap|kya|kyun|kaise|kab|kahan|kaun|hai|ho)\b/.test(text)) return "question";
+  return "conversation";
+}
+
 function extractMemory(message) {
   const identity = String(message || "").match(/^\s*(?:mera naam|my name)\s+(.+?)(?:\s+(?:hai|is|h)\b|\s+(?:yaad rakh|yaad rakho|yaad rakhna)\b|$)/i);
   if (identity) return "User ka naam " + identity[1].trim();
