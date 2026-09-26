@@ -473,7 +473,11 @@ function planTool(message) {
     return { tool: "get_daily_plan", args: {} };
   }
 
-  if (intent === "research" || intent === "question") {
+  if (
+    intent === "research" ||
+    intent === "question" ||
+    /\\b(news|khabar|today|aaj|latest|current|recent|source|sources|date|tarikh)\\b/i.test(message)
+  ) {
     return { tool: "web_search", args: { query: message } };
   }
 
