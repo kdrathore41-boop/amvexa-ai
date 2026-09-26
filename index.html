@@ -829,6 +829,11 @@
         addMessage("assistant", assistantMessage);
         speak(assistantMessage);
 
+        const action = data?.data?.execution?.action;
+        if (action?.type === "music" && action.url) {
+          window.open(action.url, "_blank", "noopener,noreferrer");
+        }
+
         statusText.textContent = "Online";
         voiceCommand = false;
 
