@@ -640,6 +640,8 @@
     let listening = false;
     let speakReplies = true;
     let voiceCommand = false;
+    let handsFree = false;
+    let proactiveTimer = null;
 
     function setupVoice() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -680,10 +682,8 @@
 
       recognition.onend = () => {
         listening = false;
-        voiceButton.textContent = "◉";
-        if (statusText.textContent === "Listening...") {
-          statusText.textContent = "Online";
-        }
+        voiceButton.textContent = handsFree ? "◉" : "◉";
+        if (statusText.textContent === "Listening...") statusText.textContent = "Online";
       };
     }
 
@@ -694,8 +694,10 @@
       }
 
       if (listening) {
+        handsFree = false;
         recognition.stop();
       } else {
+        handsFree = true;
         try {
           recognition.start();
         } catch (error) {
@@ -750,6 +752,32 @@
         behavior: "smooth",
         block: "nearest"
       });
+    }
+
+    async function restoreConversation() {
+      try {
+        const response = await fetch(`${API_URL}/api/conversation`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const turns = Array.isArray(data.conversation) ? data.conversation.slice(-12) : [];
+        turns.forEach(turn => {
+          if (turn && (turn.role === "user" || turn.role === "assistant")) addMessage(turn.role, turn.content);
+        });
+      } catch (_) {}
+    }
+
+    async function checkProactive() {
+      try {
+        const response = await fetch(`${API_URL}/api/proactive`);
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!data.shouldSpeak || !data.message) return;
+        const key = data.message + "|" + String(data.at || "").slice(0, 13);
+        if (sessionStorage.getItem("amvexa_proactive") === key) return;
+        sessionStorage.setItem("amvexa_proactive", key);
+        addMessage("assistant", data.message);
+        speak(data.message);
+      } catch (_) {}
     }
 
     async function refreshMemoryStatus() {
@@ -857,6 +885,12 @@
 
         statusText.textContent = "Online";
         voiceCommand = false;
+
+        if (handsFree && recognition && !listening) {
+          setTimeout(() => {
+            try { recognition.start(); } catch (_) {}
+          }, Math.max(900, Math.min(2500, assistantMessage.length * 35)));
+        }
 
         const intent = data?.data?.understanding?.intent;
 
@@ -968,8 +1002,11 @@
       });
     }
 
+    restoreConversation();
     refreshMemoryStatus();
     refreshTaskStatus();
+    checkProactive();
+    proactiveTimer = setInterval(checkProactive, 5 * 60 * 1000);
 
     input.addEventListener("keydown", function(event) {
       if (event.key === "Enter" && !event.shiftKey) {
