@@ -478,6 +478,13 @@ function planTool(message) {
     return { tool: "complete_task", args: { reference: message } };
   }
 
+  if (intent === "music") {
+    return {
+      tool: "music_search",
+      args: { query: message }
+    };
+  }
+
   if (intent === "tasks") {
     return { tool: "get_tasks", args: {} };
   }
@@ -516,6 +523,20 @@ async function executeTool(tool, args = {}) {
     case "complete_task":
       result = completeTask(args.reference);
       break;
+
+    case "music_search": {
+      const query = String(args.query || "").trim() || "romantic songs";
+      const url = "https://www.youtube.com/results?search_query=" + encodeURIComponent(query);
+      result = {
+        success: true,
+        action: {
+          type: "music",
+          query,
+          url
+        }
+      };
+      break;
+    }
 
     case "get_tasks":
       result = { success: true, tasks };
@@ -696,6 +717,10 @@ async function agent(message, autoExecute = true) {
   const verification = verifyTool(plan.tool, execution);
 
   let response = localBrain(message);
+
+  if (plan.tool === "music_search") {
+    response = "Bilkul 🎵 Main aapke liye romantic songs khol raha hoon.";
+  }
 
   if (plan.tool === "get_tasks") {
     const open = execution.tasks.filter(t => t.status !== "done");
