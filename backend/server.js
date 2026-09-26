@@ -734,7 +734,12 @@ function localBrain(message, aiError = "") {
   }
 
   if (intent === "question") {
-    if (/who are you|tum kaun|aap kaun|what are you|tum kya ho|aap kya ho|tumhara naam|aapka naam|mera naam kya|what is your name|what's your name/.test(lower)) {
+    if (/^\s*(mera naam kya|what is my name|what's my name|my name)\b/i.test(lower)) {
+      const found = memory.find(m => /\bname\b/i.test(m.content));
+      return found ? found.content : "Abhi mujhe aapka naam yaad nahi hai. Aap ek baar bata dijiye: “Mera naam ___ hai”, main yaad rakh loonga.";
+    }
+
+    if (/who are you|tum kaun|aap kaun|what are you|tum kya ho|aap kya ho|tumhara naam|aapka naam|what is your name|what's your name/.test(lower)) {
       return "Main Amvexa hoon — aapka personal AI assistant. Main aapse naturally baat karta hoon, aapki baatein yaad rakh sakta hoon, tasks aur planning sambhal sakta hoon, aur zarurat par internet se current information research kar sakta hoon.";
     }
 
