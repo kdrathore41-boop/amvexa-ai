@@ -1,0 +1,17 @@
+{
+  "name": "Amvexa — Personal AI Assistant",
+  "short_name": "Amvexa",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050b14",
+  "theme_color": "#07111f",
+  "description": "Amvexa personal AI assistant for thinking, planning, researching and getting things done.",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
