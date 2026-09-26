@@ -7,7 +7,7 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const ROOT = path.join(__dirname, "..");
 const VERSION = "3.6";
-const RELEASE = "1.0.4";
+const RELEASE = "1.0.5";
 
 const FILES = {
   memory: path.join(__dirname, "memory.json"),
@@ -210,7 +210,6 @@ function completeTask(reference) {
   task.completedAt = new Date().toISOString();
 
   writeJson(FILES.tasks, tasks);
-
   syncGoals();
 
   return {
@@ -222,39 +221,29 @@ function completeTask(reference) {
 function syncGoals() {
   let changed = false;
 
-  for (const goal of goals) {
-    if (!Array.isArray(goal.steps)) continue;
+  goals = goals.map(goal => {
+    if (!goal.taskIds) return goal;
 
-    for (const step of goal.steps) {
-      if (!step.taskId) continue;
+    const done = goal.taskIds.filter(id => {
+      const task = tasks.find(t => t.id === id);
+      return task && task.status === "done";
+    }).length;
 
-      const task = tasks.find(t => t.id === step.taskId);
+    const status = done === goal.taskIds.length ? "done" : "open";
 
-      if (task && task.status === "done" && !step.completedAt) {
-        step.completedAt = new Date().toISOString();
-        changed = true;
-      }
-    }
-
-    const finished = goal.steps.length > 0 &&
-      goal.steps.every(step => {
-        if (!step.taskId) return true;
-        const task = tasks.find(t => t.id === step.taskId);
-        return task && task.status === "done";
-      });
-
-    if (finished && goal.status !== "completed") {
-      goal.status = "completed";
-      goal.completedAt = new Date().toISOString();
+    if (goal.status !== status) {
       changed = true;
+      return { ...goal, status };
     }
-  }
+
+    return goal;
+  });
 
   if (changed) writeJson(FILES.goals, goals);
 }
 
 function detectIntent(message) {
-  const text = message.toLowerCase();
+  const text = message.toLowerCase().trim();
 
   if (/\b(remember|save|store|note|yaad rakh)\b/.test(text)) {
     return "memory";
@@ -266,29 +255,23 @@ function detectIntent(message) {
     return "recall";
   }
 
-  if (
-    /\b(complete|finish|done|mark)\b.*\b(task|todo)\b/.test(text)
-  ) {
+  if (/\b(complete|finish|done|mark)\b.*\b(task|todo)\b/.test(text)) {
     return "task_complete";
   }
 
   if (
     /\b(show|list|my|mere)\b.*\b(tasks?|todos?)\b/.test(text) ||
-    /(mere|aaj|aj|today|jaruri|zaroori|important|zaroori kaam|jaruri kaam).*(kaam|task|todo)/.test(text) ||
+    /(mere|aaj|aj|today|jaruri|zaroori|important).*(kaam|task|todo)/.test(text) ||
     /(kaam|tasks?|todos?).*(batao|dikhao|dikhaiye|bataiye|show|list)/.test(text)
   ) {
     return "tasks";
   }
 
-  if (
-    /\b(add|create|creat|make|set|new)\s+(a\s+)?(task|tast|todo)\b/.test(text)
-  ) {
+  if (/\b(add|create|creat|make|set|new)\s+(a\s+)?(task|tast|todo)\b/.test(text)) {
     return "planning";
   }
 
-  if (
-    /\b(research|search|latest|investigate|find out)\b/.test(text)
-  ) {
+  if (/\b(research|search|latest|investigate|find out)\b/.test(text)) {
     return "research";
   }
 
@@ -300,10 +283,14 @@ function detectIntent(message) {
     return "planning";
   }
 
-  if (
-    /\b(hello|hi|hey|namaste)\b/.test(text)
-  ) {
+  if (/\b(hello|hi|hey|namaste)\b/.test(text)) {
     return "greeting";
+  }
+
+  if (
+    /\b(what|why|how|when|where|who|which|can you|do you|are you|tum|aap|kya|kyun|kaise|kab|kahan|kaun|hai|ho)\b/.test(text)
+  ) {
+    return "question";
   }
 
   return "conversation";
@@ -328,9 +315,7 @@ function taskFromMessage(message) {
 }
 
 function nextAction() {
-  const high = tasks.find(
-    t => t.status !== "done" && t.priority === "high"
-  );
+  const high = tasks.find(t => t.status !== "done" && t.priority === "high");
 
   if (high) {
     return {
@@ -413,63 +398,30 @@ function planTool(message) {
   const intent = detectIntent(message);
 
   if (intent === "memory") {
-    return {
-      tool: "save_memory",
-      args: {
-        content: extractMemory(message)
-      }
-    };
+    return { tool: "save_memory", args: { content: extractMemory(message) } };
   }
 
   if (intent === "recall") {
-    return {
-      tool: "recall_memory",
-      args: {
-        query: message
-      }
-    };
+    return { tool: "recall_memory", args: { query: message } };
   }
 
   if (intent === "task_complete") {
-    return {
-      tool: "complete_task",
-      args: {
-        reference: message
-          .replace(/.*?(complete|finish|done|mark)\s*(this\s*)?(task|todo)?/i, "")
-          .trim()
-      }
-    };
+    return { tool: "complete_task", args: { reference: message } };
   }
 
   if (intent === "tasks") {
-    return {
-      tool: "get_tasks",
-      args: {}
-    };
+    return { tool: "get_tasks", args: {} };
   }
 
   if (intent === "planning") {
-    const title = taskFromMessage(message);
-
-    if (title) {
-      return {
-        tool: "create_task",
-        args: {
-          title
-        }
-      };
-    }
-
-    return {
-      tool: "get_daily_plan",
-      args: {}
-    };
+    return { tool: "get_daily_plan", args: {} };
   }
 
-  return {
-    tool: null,
-    args: {}
-  };
+  if (intent === "research") {
+    return { tool: "search_knowledge", args: { query: message } };
+  }
+
+  return { tool: null, args: {} };
 }
 
 function executeTool(tool, args = {}) {
@@ -477,31 +429,15 @@ function executeTool(tool, args = {}) {
 
   switch (tool) {
     case "save_memory":
-      if (!args.content) {
-        return {
-          success: false,
-          error: "Memory content is required"
-        };
-      }
-
-      result = {
-        success: true,
-        memory: remember(args.content)
-      };
+      result = { success: true, memory: remember(args.content) };
       break;
 
     case "recall_memory":
-      result = {
-        success: true,
-        memories: memorySearch(args.query)
-      };
+      result = { success: true, memories: memorySearch(args.query) };
       break;
 
     case "create_task":
-      result = {
-        success: true,
-        task: createTask(args.title, args.priority)
-      };
+      result = { success: true, task: createTask(args.title, args.priority) };
       break;
 
     case "complete_task":
@@ -509,51 +445,32 @@ function executeTool(tool, args = {}) {
       break;
 
     case "get_tasks":
-      result = {
-        success: true,
-        tasks
-      };
+      result = { success: true, tasks };
       break;
 
     case "get_daily_plan":
-      result = {
-        success: true,
-        plan: dailyPlan()
-      };
+      result = { success: true, plan: dailyPlan() };
       break;
 
     case "get_next_action":
-      result = {
-        success: true,
-        nextAction: nextAction()
-      };
+      result = { success: true, nextAction: nextAction() };
       break;
 
     case "search_knowledge":
-      result = {
-        success: true,
-        results: knowledgeSearch(args.query)
-      };
+      result = { success: true, results: knowledgeSearch(args.query) };
       break;
 
     default:
-      return {
-        success: false,
-        error: "Tool not allowed"
-      };
+      return { success: false, error: "Tool not allowed" };
   }
 
   logAction(tool, args, result);
-
   return result;
 }
 
 function verifyTool(tool, result) {
   if (!result || result.success !== true) {
-    return {
-      verified: false,
-      reason: result?.error || "Tool failed"
-    };
+    return { verified: false, reason: result?.error || "Tool failed" };
   }
 
   if (tool === "save_memory") {
@@ -581,16 +498,15 @@ function verifyTool(tool, result) {
     };
   }
 
-  return {
-    verified: true,
-    reason: "Result structure verified"
-  };
+  return { verified: true, reason: "Result structure verified" };
 }
 
 function localBrain(message) {
-  const intent = detectIntent(message);
+  const text = String(message || "").trim();
+  const lower = text.toLowerCase();
+  const intent = detectIntent(text);
 
-  if (/hindi.*(nahi|nahin).*aati|hindi.*samajh|hindi.*aati.*kya/.test(message.toLowerCase())) {
+  if (/hindi.*(nahi|nahin).*aati|hindi.*samajh|hindi.*aati.*kya/.test(lower)) {
     return "Aati hai. Aap Hindi mein bilkul baat kijiye.";
   }
 
@@ -599,35 +515,63 @@ function localBrain(message) {
   }
 
   if (intent === "memory") {
-    return "I've processed that memory request.";
+    const content = extractMemory(text);
+    return content
+      ? `Theek hai, maine yaad rakh liya: "${content}"`
+      : "Bilkul. Jo baat aap chahte hain ki main yaad rakhun, woh bataiye.";
   }
 
   if (intent === "recall") {
-    const found = memorySearch(message);
-
-    if (!found.length) {
-      return "Abhi mujhe matching memory nahi mili.";
-    }
-
-    return found
-      .map((m, i) => `${i + 1}. ${m.content}`)
-      .join("\n");
+    const found = memorySearch(text);
+    return found.length
+      ? found.map((m, i) => `${i + 1}. ${m.content}`).join("\n")
+      : "Abhi mujhe matching memory nahi mili.";
   }
 
   if (intent === "tasks") {
     const open = tasks.filter(t => t.status !== "done");
+    return open.length
+      ? open.map((t, i) => `${i + 1}. ${t.title} (${t.priority})`).join("\n")
+      : "Aaj ke liye koi open task nahi hai.";
+  }
 
-    if (!open.length) {
-      return "Aaj ke liye koi open task nahi hai.";
+  if (intent === "planning") {
+    const plan = dailyPlan();
+    if (!plan.tasks.length) {
+      return "Aaj ke liye koi open task nahi hai. Aap chahein to main aapke liye daily plan bana sakta hoon.";
     }
-
-    return open
-      .map((t, i) => `${i + 1}. ${t.title} (${t.priority})`)
-      .join("\n");
+    return [
+      "Aaj ka plan:",
+      ...plan.tasks.map((t, i) => `${i + 1}. ${t.title} — ${t.priority}`),
+      `Next action: ${plan.nextAction.title}`
+    ].join("\n");
   }
 
   if (intent === "research") {
-    return "I can research a public web source when web intelligence is connected.";
+    const results = knowledgeSearch(text);
+    return results.length
+      ? results.map((r, i) => `${i + 1}. ${r.name}: ${r.text}`).join("\n")
+      : "Main is topic ko research kar sakta hoon, lekin abhi web intelligence connected nahi hai.";
+  }
+
+  if (intent === "question") {
+    if (/who are you|tum kaun|aap kaun|what are you|tum kya ho|aap kya ho/.test(lower)) {
+      return "Main Amvexa hoon — aapka personal AI assistant. Main planning, tasks, memory, research aur everyday questions mein help karta hoon.";
+    }
+
+    if (/how are you|kaise ho|kaisi ho/.test(lower)) {
+      return "Main ready hoon. Aap jo kaam ya sawaal denge, usi ke hisaab se help karunga.";
+    }
+
+    if (/help|madad|kya kar sakte|what can you do|kya kya/.test(lower)) {
+      return "Main aapke tasks manage kar sakta hoon, baatein yaad rakh sakta hoon, daily planning mein help kar sakta hoon aur available knowledge par research kar sakta hoon.";
+    }
+
+    if (/time|samay|kitne baje/.test(lower)) {
+      return `Abhi server time ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} hai.`;
+    }
+
+    return `Aapne poocha: "${text}". Main is sawaal ko samajh raha hoon. Iska accurate answer dene ke liye mujhe relevant knowledge ya web intelligence chahiye.`;
   }
 
   return "Samajh gaya. Aap apna kaam ya sawaal batayiye, main uske hisaab se help karunga.";
@@ -674,411 +618,120 @@ async function agent(message, autoExecute = true) {
   const execution = executeTool(plan.tool, plan.args);
   const verification = verifyTool(plan.tool, execution);
 
+  let response = localBrain(message);
+
+  if (plan.tool === "get_tasks") {
+    const open = execution.tasks.filter(t => t.status !== "done");
+    response = open.length
+      ? open.map((t, i) => `${i + 1}. ${t.title} (${t.priority})`).join("\n")
+      : "Aaj ke liye koi open task nahi hai.";
+  }
+
+  if (plan.tool === "get_daily_plan") {
+    const planData = execution.plan;
+    response = planData.tasks.length
+      ? ["Aaj ka plan:", ...planData.tasks.map((t, i) => `${i + 1}. ${t.title} — ${t.priority}`), `Next action: ${planData.nextAction.title}`].join("\n")
+      : "Aaj ke liye koi open task nahi hai. Aap chahein to main aapke liye daily plan bana sakta hoon.";
+  }
+
+  if (plan.tool === "save_memory") {
+    response = `Theek hai, maine yaad rakh liya: "${execution.memory.content}"`;
+  }
+
+  if (plan.tool === "recall_memory") {
+    response = execution.memories?.length
+      ? execution.memories.map((m, i) => `${i + 1}. ${m.content}`).join("\n")
+      : "Abhi mujhe matching memory nahi mili.";
+  }
+
   return {
     success: execution.success === true && verification.verified === true,
     agent: "Amvexa",
     version: VERSION,
-    mode: "agent",
+    mode: "executed",
     understanding,
     plan,
     execution,
     verification,
     nextAction: nextAction(),
-    response: execution.success
-      ? plan.tool === "recall_memory"
-        ? (execution.memories?.length
-          ? execution.memories.map((m, i) => `${i + 1}. ${m.content}`).join("\n")
-          : "I don't have a matching memory yet.")
-        : (plan.tool === "get_tasks" ? (execution.tasks && execution.tasks.filter(t => t.status !== "done").length ? execution.tasks.filter(t => t.status !== "done").map((t, i) => (i + 1) + ". " + t.title).join("\n") : "Aaj ke liye koi open task nahi hai.") : plan.tool === "get_daily_plan" ? (execution.plan && execution.plan.tasks && execution.plan.tasks.length ? execution.plan.tasks.map((t, i) => (i + 1) + ". " + t.title).join("\n") : "Aaj ke liye koi open task nahi hai.") : "Ho gaya. " + plan.tool.replace(/_/g, " ") + " execute karke result verify kiya.")
-      : execution.error || "The action could not be completed."
+    response
   };
 }
 
-/* ---------- Core routes ---------- */
-
-app.get("/", (req, res) => {
-  res.json({
-    success: true,
-    platform: "Amvexa",
-    status: "online",
-    brainVersion: VERSION,
-    release: RELEASE,
-    message: "Amvexa AI backend is ready"
-  });
-});
-
 app.get("/api/health", (req, res) => {
   res.json({
-    success: true,
-    platform: "Amvexa",
-    status: "healthy",
-    brainVersion: VERSION
-  });
-});
-
-app.get("/api/system/version", (req, res) => {
-  res.json({
-    success: true,
-    platform: "Amvexa",
+    ok: true,
+    service: "amvexa-ai",
     version: VERSION,
-    release: RELEASE,
-    node: process.version
+    release: RELEASE
   });
 });
-
-app.get("/api/system/readiness", (req, res) => {
-  res.json({
-    success: true,
-    ready: true,
-    brain: true,
-    memory: true,
-    tasks: true,
-    goals: true,
-    knowledge: true,
-    agent: true
-  });
-});
-
-app.get("/api/system/diagnostics", (req, res) => {
-  res.json({
-    success: true,
-    version: VERSION,
-    release: RELEASE,
-    uptime: process.uptime(),
-    state: contextSummary(),
-    auditEntries: audit.length
-  });
-});
-
-app.get("/api/context", (req, res) => {
-  res.json({
-    success: true,
-    context,
-    summary: contextSummary()
-  });
-});
-
-app.get("/api/brain/status", (req, res) => {
-  res.json({
-    success: true,
-    brain: "Amvexa",
-    version: VERSION,
-    status: "active",
-    capabilities: [
-      "conversation",
-      "memory",
-      "tasks",
-      "goals",
-      "knowledge",
-      "agent-loop",
-      "safe-tools"
-    ]
-  });
-});
-
-app.get("/api/brain/next-action", (req, res) => {
-  res.json({
-    success: true,
-    nextAction: nextAction()
-  });
-});
-
-app.get("/api/brain/daily-plan", (req, res) => {
-  res.json({
-    success: true,
-    plan: dailyPlan()
-  });
-});
-
-app.get("/api/brain/insights", (req, res) => {
-  const open = tasks.filter(t => t.status !== "done");
-
-  res.json({
-    success: true,
-    insights: [
-      ...(open.filter(t => t.priority === "high").length
-        ? ["You have high-priority work waiting."]
-        : []),
-      ...(open.length
-        ? [`You have ${open.length} open task(s).`]
-        : ["No open tasks."]),
-      ...(goals.length
-        ? [`You have ${goals.length} goal(s) in your workspace.`]
-        : [])
-    ]
-  });
-});
-
-app.get("/api/brain/recovery", (req, res) => {
-  res.json({
-    success: true,
-    recovery: {
-      stateFiles: Object.keys(FILES).map(k => ({
-        name: k,
-        exists: fs.existsSync(FILES[k])
-      })),
-      writable: fs.accessSync(__dirname, fs.constants.W_OK) === undefined
-    }
-  });
-});
-
-app.post("/api/brain/self-test", (req, res) => {
-  const tests = {
-    memory: Array.isArray(memory),
-    tasks: Array.isArray(tasks),
-    goals: Array.isArray(goals),
-    knowledge: Array.isArray(knowledge),
-    audit: Array.isArray(audit),
-    context: context && typeof context === "object",
-    agent: typeof agent === "function"
-  };
-
-  res.json({
-    success: Object.values(tests).every(Boolean),
-    version: VERSION,
-    tests
-  });
-});
-
-app.post("/api/brain/understand", (req, res) => {
-  const message = String(req.body.message || "").trim();
-
-  if (!message) {
-    return res.status(400).json({
-      success: false,
-      error: "Message is required"
-    });
-  }
-
-  res.json({
-    success: true,
-    intent: detectIntent(message),
-    plan: planTool(message)
-  });
-});
-
-app.post("/api/brain/plan-tool", (req, res) => {
-  const message = String(req.body.message || "").trim();
-
-  if (!message) {
-    return res.status(400).json({
-      success: false,
-      error: "Message is required"
-    });
-  }
-
-  res.json({
-    success: true,
-    plan: planTool(message)
-  });
-});
-
-app.post("/api/brain/agent", async (req, res) => {
-  const message = String(req.body.message || "").trim();
-
-  if (!message) {
-    return res.status(400).json({
-      success: false,
-      error: "Message is required"
-    });
-  }
-
-  const autoExecute = req.body.autoExecute !== false;
-
-  try {
-    const result = await agent(message, autoExecute);
-    res.json(result);
-  } catch (error) {
-    console.error("Agent error:", error);
-
-    res.status(500).json({
-      success: false,
-      error: "Agent execution failed safely"
-    });
-  }
-});
-
-app.post("/api/brain/execute-next", (req, res) => {
-  const action = nextAction();
-
-  if (action.type !== "task") {
-    return res.json({
-      success: true,
-      executed: false,
-      nextAction: action
-    });
-  }
-
-  const result = completeTask(action.taskId);
-
-  logAction("execute_next", action, result);
-
-  res.json({
-    success: result.success,
-    executed: result.success,
-    result,
-    nextAction: nextAction()
-  });
-});
-
-/* ---------- Memory ---------- */
-
-app.get("/api/memory", (req, res) => {
-  res.json({
-    success: true,
-    memory: memory.slice(-50),
-    total: memory.length
-  });
-});
-
-app.get("/api/memory/search", (req, res) => {
-  res.json({
-    success: true,
-    results: memorySearch(req.query.q || "")
-  });
-});
-
-app.delete("/api/memory", (req, res) => {
-  memory = [];
-  writeJson(FILES.memory, memory);
-
-  res.json({
-    success: true,
-    message: "Memory cleared"
-  });
-});
-
-/* ---------- Tasks ---------- */
-
-app.get("/api/tasks", (req, res) => {
-  res.json({
-    success: true,
-    tasks,
-    total: tasks.length
-  });
-});
-
-app.post("/api/tasks", (req, res) => {
-  const title = String(req.body.title || "").trim();
-
-  if (!title) {
-    return res.status(400).json({
-      success: false,
-      error: "Task title is required"
-    });
-  }
-
-  const task = createTask(title, req.body.priority);
-
-  res.json({
-    success: true,
-    task
-  });
-});
-
-app.patch("/api/tasks/:id", (req, res) => {
-  const task = tasks.find(t => t.id === req.params.id);
-
-  if (!task) {
-    return res.status(404).json({
-      success: false,
-      error: "Task not found"
-    });
-  }
-
-  if (req.body.title !== undefined) {
-    task.title = String(req.body.title).trim();
-  }
-
-  if (req.body.priority !== undefined) {
-    task.priority = ["high", "normal", "low"].includes(req.body.priority)
-      ? req.body.priority
-      : task.priority;
-  }
-
-  if (req.body.status !== undefined) {
-    task.status = req.body.status === "done" ? "done" : "open";
-    if (task.status === "done" && !task.completedAt) {
-      task.completedAt = new Date().toISOString();
-    }
-    if (task.status !== "done") delete task.completedAt;
-  }
-
-  writeJson(FILES.tasks, tasks);
-  syncGoals();
-
-  res.json({
-    success: true,
-    task
-  });
-});
-
-app.delete("/api/tasks/:id", (req, res) => {
-  const index = tasks.findIndex(t => t.id === req.params.id);
-
-  if (index === -1) {
-    return res.status(404).json({
-      success: false,
-      error: "Task not found"
-    });
-  }
-
-  const [task] = tasks.splice(index, 1);
-  writeJson(FILES.tasks, tasks);
-
-  res.json({
-    success: true,
-    task
-  });
-});
-
-/* ---------- Chat ---------- */
 
 app.post("/api/chat", async (req, res) => {
-  const message = String(req.body.message || "").trim();
-
-  if (!message) {
-    return res.status(400).json({
-      success: false,
-      error: "Message is required"
-    });
-  }
-
   try {
+    const message = String(req.body?.message || "").trim();
+
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        error: "Message is required"
+      });
+    }
+
     const result = await agent(message, true);
 
     res.json({
-      success: result.success !== false,
-      assistant: "Amvexa",
-      version: VERSION,
+      success: true,
       message: result.response,
-      intent: result.understanding?.intent || "conversation",
-      mode: result.mode || "conversation",
-      execution: result.execution || null,
-      verification: result.verification || null,
-      nextAction: result.nextAction || nextAction()
+      data: result
     });
   } catch (error) {
     console.error("Chat error:", error);
 
     res.status(500).json({
       success: false,
-      assistant: "Amvexa",
-      error: "Amvexa could not process the message safely."
+      error: "Unable to process message"
     });
   }
 });
 
-app.use((err, req, res, next) => {
-  console.error("Amvexa server error:", err);
-  if (res.headersSent) return next(err);
+app.get("/api/context", (req, res) => {
+  res.json({
+    success: true,
+    context: contextSummary()
+  });
+});
 
-  res.status(500).json({
-    success: false,
-    error: "Amvexa backend error"
+app.get("/api/memory", (req, res) => {
+  res.json({
+    success: true,
+    memory
+  });
+});
+
+app.get("/api/tasks", (req, res) => {
+  res.json({
+    success: true,
+    tasks
+  });
+});
+
+app.get("/api/goals", (req, res) => {
+  res.json({
+    success: true,
+    goals
+  });
+});
+
+app.get("/api/audit", (req, res) => {
+  res.json({
+    success: true,
+    audit
   });
 });
 
 app.listen(PORT, () => {
-  console.log(`Amvexa backend running on port ${PORT} | Brain ${VERSION} | Release ${RELEASE}`);
+  console.log(`Amvexa backend listening on port ${PORT}`);
+  console.log(`Version: ${VERSION}`);
+  console.log(`Release: ${RELEASE}`);
 });
