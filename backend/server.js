@@ -476,7 +476,7 @@ function planTool(message) {
   if (
     intent === "research" ||
     intent === "question" ||
-    /\\b(news|khabar|today|aaj|latest|current|recent|source|sources|date|tarikh)\\b/i.test(message)
+    /\b(news|khabar|today|aaj|latest|current|recent|source|sources|date|tarikh)\b/i.test(message)
   ) {
     return { tool: "web_search", args: { query: message } };
   }
