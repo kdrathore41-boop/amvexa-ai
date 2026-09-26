@@ -268,7 +268,9 @@ function detectIntent(message) {
   }
 
   if (
-    /\b(what do you remember|what do you know about me|what is my name|what's my name|who am i|what are you to me|recall|yaad hai|mere baare mein)\b/.test(text)
+    /\b(what do you remember|what do you know about me|what is my name|what's my name|who am i|what are you to me|recall|yaad hai|mere baare mein)\b/.test(text) ||
+    /^\s*(mera naam|my name)\s+(kya|what)\s*(hai|is|h)?\b/i.test(text) ||
+    /^\s*(main|mein)\s+kaun\s+(hoon|hun|hu)\b/i.test(text)
   ) {
     return "recall";
   }
@@ -321,7 +323,7 @@ function detectIntent(message) {
 }
 
 function extractMemory(message) {
-  const identity = String(message || "").match(/\b(?:mera naam|my name)\s+(.+?)\s+(?:hai|is)\b/i);
+  const identity = String(message || "").match(/\b(?:mera naam|my name)\s+(.+?)(?:\s+(?:hai|is|h)\b|\s+(?:yaad rakh|yaad rakho|yaad rakhna)\b|$)/i);
   if (identity) return "User ka naam " + identity[1].trim();
 
   return message
@@ -742,8 +744,12 @@ function localBrain(message, aiError = "") {
 
   if (intent === "question") {
     if (/^\s*(mera naam kya|what is my name|what's my name|my name)\b/i.test(lower)) {
-      const found = memory.find(m => /\bname\b/i.test(m.content));
-      return found ? found.content : "Abhi mujhe aapka naam yaad nahi hai. Aap ek baar bata dijiye: “Mera naam ___ hai”, main yaad rakh loonga.";
+      const found = memory.find(m => /\b(?:name|naam)\b/i.test(m.content));
+      if (found) {
+        const name = found.content.match(/^User ka naam\s+(.+)$/i)?.[1]?.trim();
+        return name ? `Aapka naam ${name} hai.` : found.content;
+      }
+      return "Abhi mujhe aapka naam yaad nahi hai. Aap ek baar bata dijiye: “Mera naam ___ hai”, main yaad rakh loonga.";
     }
 
     if (/who are you|tum kaun|aap kaun|what are you|tum kya ho|aap kya ho|tumhara naam|aapka naam|what is your name|what's your name/.test(lower)) {
