@@ -532,13 +532,14 @@ async function executeTool(tool, args = {}) {
 
     case "music_search": {
       const query = String(args.query || "").trim() || "romantic songs";
-      const url = "https://www.youtube.com/results?search_query=" + encodeURIComponent(query);
+      const playlistUrl = "https://youtube.com/playlist?list=PL-ER7jNwYADztaCaTFnTMGBoGWaIUQ0K4&si=6o-Ln9w2WHvlUKgt";
       result = {
         success: true,
         action: {
           type: "music",
           query,
-          url
+          url: playlistUrl,
+          playlist: true
         }
       };
       break;
