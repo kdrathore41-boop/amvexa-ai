@@ -7,7 +7,7 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const ROOT = path.join(__dirname, "..");
 const VERSION = "3.6";
-const RELEASE = "1.0.3";
+const RELEASE = "1.0.4";
 
 const FILES = {
   memory: path.join(__dirname, "memory.json"),
@@ -590,7 +590,8 @@ function verifyTool(tool, result) {
 function localBrain(message) {
   const intent = detectIntent(message);
 
-  if (intent === "greeting") {
+  if (/hindi.*(nahi|nahin).*aati|hindi.*samajh|hindi.*aati.*kya/.test(message.toLowerCase())) {
+    return "Aati hai. Aap Hindi mein bilkul baat kijiye.";\n  }\n\n  if (intent === "greeting") {
     return "Namaste! Main Amvexa hoon. Aap batayiye, main kya karun?";
   }
 
