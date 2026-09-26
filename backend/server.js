@@ -429,9 +429,17 @@ async function generateAIResponse(message, extraContext = "", useWeb = false) {
       signal: controller.signal
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) return { success: false, error: data?.error?.message || "AI provider request failed" };
+    if (!response.ok) {
+      const providerError = data?.error?.message || "AI provider request failed";
+      console.error("Gemini error:", response.status, providerError);
+      return { success: false, error: providerError };
+    }
     const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("").trim();
-    return text ? { success: true, text } : { success: false, error: "AI provider returned no response" };
+    if (!text) {
+      console.error("Gemini returned no text:", JSON.stringify(data).slice(0, 2000));
+      return { success: false, error: "AI provider returned no response" };
+    }
+    return { success: true, text };
   } catch (error) {
     return { success: false, error: error?.name === "AbortError" ? "AI provider timed out" : "AI provider unavailable" };
   } finally { clearTimeout(timeout); }
@@ -672,7 +680,7 @@ function verifyTool(tool, result) {
   return { verified: true, reason: "Result structure verified" };
 }
 
-function localBrain(message) {
+function localBrain(message, aiError = "") {
   const text = String(message || "").trim();
   const lower = text.toLowerCase();
   const intent = detectIntent(text);
@@ -726,7 +734,7 @@ function localBrain(message) {
   }
 
   if (intent === "question") {
-    if (/who are you|tum kaun|aap kaun|what are you|tum kya ho|aap kya ho/.test(lower)) {
+    if (/who are you|tum kaun|aap kaun|what are you|tum kya ho|aap kya ho|tumhara naam|aapka naam|mera naam kya|what is your name|what's your name/.test(lower)) {
       return "Main Amvexa hoon — aapka personal AI assistant. Main aapse naturally baat karta hoon, aapki baatein yaad rakh sakta hoon, tasks aur planning sambhal sakta hoon, aur zarurat par internet se current information research kar sakta hoon.";
     }
 
@@ -742,7 +750,9 @@ function localBrain(message) {
       return `Abhi server time ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} hai.`;
     }
 
-    return `Aapne poocha: "${text}". Main is sawaal ko samajh raha hoon. Iska accurate answer dene ke liye mujhe relevant knowledge ya web intelligence chahiye.`;
+    return aiError
+      ? `Main abhi aapka sawaal process karne ke liye AI brain se connect nahi ho pa raha hoon. Technical error: ${aiError}`
+      : `Aapne poocha: "${text}". Main is sawaal ka accurate answer dene ki koshish kar raha hoon, lekin abhi relevant knowledge available nahi hai.`;
   }
 
   return "Samajh gaya. Aap apna kaam ya sawaal batayiye, main uske hisaab se help karunga.";
@@ -759,7 +769,9 @@ async function agent(message, autoExecute = true) {
   if (!plan.tool) {
     const needsWeb = /\b(news|khabar|today|aaj|latest|current|recent|internet|web|online|source|sources|price|weather|stock|score|result|update)\b/i.test(message) || understanding.intent === "research";
     const ai = await buildAssistantResponse(message, null, needsWeb);
-    const response = ai.success ? ai.text : localBrain(message);
+    const response = ai.success
+      ? ai.text
+      : localBrain(message, ai.error);
     addConversation("user", message);
     addConversation("assistant", response);
     return {
