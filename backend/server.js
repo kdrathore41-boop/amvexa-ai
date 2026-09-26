@@ -172,6 +172,15 @@ function memorySearch(query, limit = 8) {
     .map(x => x.item);
 }
 
+function recallContext(query) {
+  const remembered = memorySearch(query, 8);
+  const rememberTurns = conversation
+    .filter(t => t.role === "user" && /(remember|save|store|note|yaad rakh|hamesha|always)/i.test(t.content))
+    .slice(-8)
+    .map(t => t.content);
+  return { remembered, rememberTurns };
+}
+
 function createTask(title, priority = "normal") {
   const task = {
     id: `task_${Date.now()}`,
@@ -718,7 +727,7 @@ function localBrain(message) {
 
   if (intent === "question") {
     if (/who are you|tum kaun|aap kaun|what are you|tum kya ho|aap kya ho/.test(lower)) {
-      return "Main Amvexa hoon — aapka personal AI assistant. Main planning, tasks, memory, research aur everyday questions mein help karta hoon.";
+      return "Main Amvexa hoon — aapka personal AI assistant. Main aapse naturally baat karta hoon, aapki baatein yaad rakh sakta hoon, tasks aur planning sambhal sakta hoon, aur zarurat par internet se current information research kar sakta hoon.";
     }
 
     if (/how are you|kaise ho|kaisi ho/.test(lower)) {
