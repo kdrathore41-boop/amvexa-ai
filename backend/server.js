@@ -391,7 +391,7 @@ function conversationContext(limit = 12) {
   return conversation.slice(-limit).map(turn => ({ role: turn.role === "assistant" ? "model" : "user", parts: [{ text: turn.content }] }));
 }
 
-async function generateAIResponse(message, extraContext = "") {
+async function generateAIResponse(message, extraContext = "", useWeb = false) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { success: false, error: "AI provider is not configured" };
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -409,9 +409,15 @@ async function generateAIResponse(message, extraContext = "") {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents: [...conversationContext(), { role: "user", parts: [{ text: message }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 700 } }), signal: controller.signal
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST", body: JSON.stringify({
+        system_instruction: { parts: [{ text: system }] },
+        contents: [...conversationContext(), { role: "user", parts: [{ text: message }] }],
+        ...(useWeb ? { tools: [{ google_search: {} }] } : {}),
+        generationConfig: { temperature: 0.7, maxOutputTokens: 700 }
+      }),
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      signal: controller.signal
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return { success: false, error: data?.error?.message || "AI provider request failed" };
@@ -422,11 +428,11 @@ async function generateAIResponse(message, extraContext = "") {
   } finally { clearTimeout(timeout); }
 }
 
-async function buildAssistantResponse(message, toolResult) {
+async function buildAssistantResponse(message, toolResult, useWeb = false) {
   const memoryContext = memorySearch(message, 5).map(m => m.content).join("\n");
   const webContext = toolResult?.success && toolResult?.results?.length ? toolResult.results.slice(0, 6).map(r => `${r.title}\n${r.content}\n${r.url}`).join("\n\n") : "";
   const extra = [memoryContext ? `Relevant remembered facts:\n${memoryContext}` : "", webContext ? `Fresh web research:\n${webContext}` : ""].filter(Boolean).join("\n\n");
-  return generateAIResponse(message, extra);
+  return generateAIResponse(message, extra, useWeb);
 }
 
 async function webSearch(query) {
@@ -442,7 +448,7 @@ async function webSearch(query) {
       body: JSON.stringify({
         api_key: apiKey,
         query: String(query || "").trim() + (
-          /\\b(news|khabar|today|aaj|latest|current|recent)\\b/i.test(String(query || ""))
+          /\b(news|khabar|today|aaj|latest|current|recent)\b/i.test(String(query || ""))
             ? " Give the answer in Hindi. For each story, include the source name and publication date when available."
             : " Answer in Hindi."
         ),
@@ -742,7 +748,8 @@ async function agent(message, autoExecute = true) {
   const plan = planTool(message);
 
   if (!plan.tool) {
-    const ai = await buildAssistantResponse(message, null);
+    const needsWeb = /\b(news|khabar|today|aaj|latest|current|recent|internet|web|online|source|sources|price|weather|stock|score|result|update)\b/i.test(message) || understanding.intent === "research";
+    const ai = await buildAssistantResponse(message, null, needsWeb);
     const response = ai.success ? ai.text : localBrain(message);
     addConversation("user", message);
     addConversation("assistant", response);
@@ -809,10 +816,10 @@ async function agent(message, autoExecute = true) {
   }
 
   if (plan.tool === "web_search") {
-    const ai = await buildAssistantResponse(message, execution);
+    const ai = await buildAssistantResponse(message, execution, true);
     response = ai.success ? ai.text : formatWebResponse(execution);
   } else if (plan.tool !== "music_search" && plan.tool !== "save_memory" && plan.tool !== "recall_memory" && plan.tool !== "get_tasks" && plan.tool !== "get_daily_plan") {
-    const ai = await buildAssistantResponse(message, execution);
+    const ai = await buildAssistantResponse(message, execution, true);
     if (ai.success) response = ai.text;
   }
 
