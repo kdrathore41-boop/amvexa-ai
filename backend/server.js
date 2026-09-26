@@ -726,7 +726,7 @@ async function agent(message, autoExecute = true) {
   let response = localBrain(message);
 
   if (plan.tool === "music_search") {
-    response = "Bilkul 🎵 Main aapke liye romantic songs khol raha hoon.";
+    response = "Bilkul 🎵 Aapki personal music playlist khol raha hoon.";
   }
 
   if (plan.tool === "get_tasks") {
