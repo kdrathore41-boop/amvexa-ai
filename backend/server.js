@@ -367,6 +367,62 @@ function contextSummary() {
   };
 }
 
+async function webSearch(query) {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) return { success: false, error: "Web intelligence is not configured", results: [] };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query: String(query || "").trim(),
+        search_depth: "advanced",
+        max_results: 6,
+        include_answer: true,
+        include_raw_content: false
+      }),
+      signal: controller.signal
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { success: false, error: data?.detail || data?.message || "Web search failed", results: [] };
+    return {
+      success: true,
+      answer: data?.answer || "",
+      results: Array.isArray(data?.results) ? data.results.map(item => ({
+        title: item.title || "",
+        url: item.url || "",
+        content: String(item.content || "").slice(0, 2500),
+        score: item.score
+      })) : []
+    };
+  } catch (error) {
+    return { success: false, error: error?.name === "AbortError" ? "Web search timed out" : "Web search unavailable", results: [] };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function formatWebResponse(result) {
+  if (!result?.success) {
+    return result?.error === "Web intelligence is not configured"
+      ? "Web intelligence abhi connected nahi hai. TAVILY_API_KEY configure hone ke baad main live internet research kar sakta hoon."
+      : "Web research abhi complete nahi ho payi.";
+  }
+  const lines = [];
+  if (result.answer) lines.push(result.answer.trim());
+  if (result.results?.length) {
+    lines.push("", "Sources:");
+    result.results.forEach((item, index) => {
+      lines.push((index + 1) + ". " + (item.title || item.url));
+      if (item.url) lines.push("   " + item.url);
+    });
+  }
+  return lines.join("\n");
+}
 function knowledgeSearch(query) {
   const terms = String(query || "")
     .toLowerCase()
@@ -417,14 +473,14 @@ function planTool(message) {
     return { tool: "get_daily_plan", args: {} };
   }
 
-  if (intent === "research") {
-    return { tool: "search_knowledge", args: { query: message } };
+  if (intent === "research" || intent === "question") {
+    return { tool: "web_search", args: { query: message } };
   }
 
   return { tool: null, args: {} };
 }
 
-function executeTool(tool, args = {}) {
+async function executeTool(tool, args = {}) {
   let result;
 
   switch (tool) {
@@ -458,6 +514,10 @@ function executeTool(tool, args = {}) {
 
     case "search_knowledge":
       result = { success: true, results: knowledgeSearch(args.query) };
+      break;
+
+    case "web_search":
+      result = await webSearch(args.query);
       break;
 
     default:
@@ -615,7 +675,7 @@ async function agent(message, autoExecute = true) {
     };
   }
 
-  const execution = executeTool(plan.tool, plan.args);
+  const execution = await executeTool(plan.tool, plan.args);
   const verification = verifyTool(plan.tool, execution);
 
   let response = localBrain(message);
@@ -642,6 +702,10 @@ async function agent(message, autoExecute = true) {
     response = execution.memories?.length
       ? execution.memories.map((m, i) => `${i + 1}. ${m.content}`).join("\n")
       : "Abhi mujhe matching memory nahi mili.";
+  }
+
+  if (plan.tool === "web_search") {
+    response = formatWebResponse(execution);
   }
 
   return {
