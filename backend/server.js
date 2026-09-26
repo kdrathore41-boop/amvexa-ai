@@ -245,7 +245,11 @@ function syncGoals() {
 function detectIntent(message) {
   const text = message.toLowerCase().trim();
 
-  if (/\b(remember|save|store|note|yaad rakh)\b/.test(text)) {
+  if (
+    /\b(remember|save|store|note|yaad rakh)\b/.test(text) ||
+    /\b(hamesha|always)\b.*\b(hindi|हिंदी)\b/.test(text) ||
+    /\b(hindi|हिंदी)\b.*\b(hamesha|always)\b/.test(text)
+  ) {
     return "memory";
   }
 
@@ -454,7 +458,10 @@ function planTool(message) {
   const intent = detectIntent(message);
 
   if (intent === "memory") {
-    return { tool: "save_memory", args: { content: extractMemory(message) } };
+    const content = /\b(hindi|हिंदी)\b/i.test(message)
+      ? "Mujhe hamesha Hindi mein jawab dena hai."
+      : extractMemory(message);
+    return { tool: "save_memory", args: { content, kind: /\b(hindi|हिंदी)\b/i.test(message) ? "preference" : "saved-memory" } };
   }
 
   if (intent === "recall") {
@@ -489,7 +496,7 @@ async function executeTool(tool, args = {}) {
 
   switch (tool) {
     case "save_memory":
-      result = { success: true, memory: remember(args.content) };
+      result = { success: true, memory: remember(args.content, args.kind || "saved-memory") };
       break;
 
     case "recall_memory":
