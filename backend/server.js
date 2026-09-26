@@ -705,7 +705,10 @@ function localBrain(message, aiError = "") {
   }
 
   if (intent === "recall") {
-    const found = memorySearch(text);
+    let found = memorySearch(text);
+    if (/\b(mera naam|my name|what is my name|what\x27s my name)\b/i.test(text)) {
+      found = memory.filter(m => /\b(user ka naam|mera naam|my name|name)\b/i.test(m.content)).slice(-8);
+    }
     return found.length
       ? found.map((m, i) => `${i + 1}. ${m.content}`).join("\n")
       : "Abhi mujhe matching memory nahi mili.";
