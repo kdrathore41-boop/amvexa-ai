@@ -294,7 +294,8 @@ function verifyTool(tool,result){ if(!result||result.success!==true)return {veri
 function localBrain(message, aiError="") {
   const text=String(message||"").trim(); const lower=text.toLowerCase(); const intent=detectIntent(text);
   if(/hindi.*(nahi|nahin).*aati|hindi.*samajh|hindi.*aati.*kya/.test(lower))return "Aati hai. Aap Hindi mein bilkul baat kijiye.";
-  if(intent==="assistant_mode")return "Samajh gaya. Mera kaam sirf chat karna nahi hai. Mujhe aapke context aur goals ko samajhkar priority nikalni chahiye, zarurat par memory, tasks, research aur planning ko jodna chahiye, phir clear next action dena, execution ke baad verify karna aur seekhe hue patterns se agle steps ko better banana chahiye.\n\nAbhi next action: pehle ek concrete active goal ko task mein convert karte hain. Aap bas apna sabse important current goal bata dijiye; uske baad main use छोटे actionable steps mein todkar priority aur next action set karunga.";\n  if(intent==="greeting")return "Namaste! Main Amvexa hoon. Aap batayiye, main kya karun?";
+  if(intent==="assistant_mode")return "Samajh gaya. Mera kaam sirf chat karna nahi hai. Mujhe aapke context aur goals ko samajhkar priority nikalni chahiye, zarurat par memory, tasks, research aur planning ko jodna chahiye, phir clear next action dena, execution ke baad verify karna aur seekhe hue patterns se agle steps ko better banana chahiye.\n\nAbhi next action: pehle ek concrete active goal ko task mein convert karte hain. Aap bas apna sabse important current goal bata dijiye; uske baad main use छोटे actionable steps mein todkar priority aur next action set karunga.";
+  if(intent==="greeting")return "Namaste! Main Amvexa hoon. Aap batayiye, main kya karun?";
   if(intent==="memory"){const content=extractMemory(text);return content?`Theek hai, maine yaad rakh liya: "${content}"`:"Bilkul. Jo baat aap chahte hain ki main yaad rakhun, woh bataiye.";}
   if(intent==="recall"){
     let found=memorySearch(text);
