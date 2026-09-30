@@ -162,8 +162,10 @@ function syncGoals() {
 
 function detectIntent(message) {
   const text = String(message || "").toLowerCase().trim();
+  // Recall questions must be checked before memory-save phrases so
+  // "Mera naam kya hai?" is never treated as a request to save "kya".
+  if (/\b(what do you remember|what do you know about me|what is my name|what's my name|who am i|recall|yaad hai|mere baare mein|mere baare me)\b/.test(text) || /^\s*(mera naam|my name|मेरा नाम)\s+(kya|what|क्या|क्या है)\b/i.test(text)) return "recall";
   if (/\b(remember|save|store|note|yaad rakh(?:o|na)?)\b/.test(text) || /\bmera naam\s+.+?(?:hai|yaad rakh)/i.test(text) || /\b(my name is)\b/i.test(text) || /मेरा नाम\s+.+?(?:है|याद रख|याद रखना|याद रखो)/i.test(text) || /याद\s+रख(?:ो|ना|िए)?/i.test(text)) return "memory";
-  if (/\b(what do you remember|what do you know about me|what is my name|what's my name|who am i|recall|yaad hai|mere baare mein|mere baare me)\b/.test(text) || /^\s*(mera naam|my name)\s+(kya|what)\b/i.test(text)) return "recall";
   if (/\b(complete|finish|done|mark)\b.*\b(task|todo)\b/.test(text)) return "task_complete";
   if (/\b(show|list|my|mere)\b.*\b(tasks?|todos?)\b/.test(text) || /(mere|aaj|aj|today|jaruri|zaroori|important).*(kaam|task|todo)/.test(text) || /(kaam|tasks?|todos?).*(batao|dikhao|dikhaiye|bataiye|show|list)/.test(text)) return "tasks";
   if (/\b(?:ek\s+)?(?:task|tast|todo)\s+(?:add|create|bana)\s+(?:karo|karna|do)\b/i.test(text) || /\b(?:add|create|creat|make|set|new)\s+(?:a\s+)?(?:task|tast|todo)\b/i.test(text) || /^\s*(?:kal|tomorrow|aaj|today)\b.+\b(?:karna|karne|complete|finish|niptana|niptane)\b/i.test(text)) return "planning";
