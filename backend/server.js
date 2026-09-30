@@ -172,7 +172,7 @@ function detectIntent(message) {
   if (/\b(play|listen|bajao|music|song|songs|gaana|gana|romantic|playlist|youtube)\b/.test(text)) return "music";
   if (/\b(research|search|latest|investigate|find out)\b/.test(text)) return "research";
   if (/\b(plan|schedule|organize)\b/.test(text) || /(aaj|aj|today).*(kaam|work|tasks?|todo|plan)/.test(text) || /(daily|din).*(plan|kaam|work)/.test(text)) return "planning";
-  if (/\b(hello|hi|hey|namaste)\b/.test(text)) return "greeting";
+  if (/\b(personal ai assistant|personal assistant|jarvis|friday|sirf chat|just chat|next action|agla action|next step)\b/i.test(text) && /\b(goal|assistant|kaam|work|analyze|analyse|analyze karo|kaise kaam|how should you work|next action|next step|sirf chat|just chat)\b/i.test(text)) return "assistant_mode";\n  if (/\b(hello|hi|hey|namaste)\b/.test(text)) return "greeting";
   if (/\b(what|why|how|when|where|who|which|can you|do you|are you|tum|aap|kya|kyun|kaise|kab|kahan|kaun|hai|ho)\b/.test(text)) return "question";
   return "conversation";
 }
@@ -293,7 +293,7 @@ function verifyTool(tool,result){ if(!result||result.success!==true)return {veri
 function localBrain(message, aiError="") {
   const text=String(message||"").trim(); const lower=text.toLowerCase(); const intent=detectIntent(text);
   if(/hindi.*(nahi|nahin).*aati|hindi.*samajh|hindi.*aati.*kya/.test(lower))return "Aati hai. Aap Hindi mein bilkul baat kijiye.";
-  if(intent==="greeting")return "Namaste! Main Amvexa hoon. Aap batayiye, main kya karun?";
+  if(intent==="assistant_mode")return "Samajh gaya. Mera kaam sirf chat karna nahi hai. Mujhe aapke context aur goals ko samajhkar priority nikalni chahiye, zarurat par memory, tasks, research aur planning ko jodna chahiye, phir clear next action dena, execution ke baad verify karna aur seekhe hue patterns se agle steps ko better banana chahiye.\n\nAbhi next action: pehle ek concrete active goal ko task mein convert karte hain. Aap bas apna sabse important current goal bata dijiye; uske baad main use छोटे actionable steps mein todkar priority aur next action set karunga.";\n  if(intent==="greeting")return "Namaste! Main Amvexa hoon. Aap batayiye, main kya karun?";
   if(intent==="memory"){const content=extractMemory(text);return content?`Theek hai, maine yaad rakh liya: "${content}"`:"Bilkul. Jo baat aap chahte hain ki main yaad rakhun, woh bataiye.";}
   if(intent==="recall"){
     let found=memorySearch(text);
