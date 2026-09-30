@@ -291,6 +291,26 @@ function planTool(message){ const intent=detectIntent(message); if(intent==="mem
 async function executeTool(tool,args={}){ let result; switch(tool){case"save_memory":result={success:true,memory:remember(args.content,args.kind||"saved-memory")};break;case"recall_memory":result={success:true,memories:memorySearch(args.query)};break;case"create_task":result={success:true,task:createTask(args.title,args.priority)};break;case"complete_task":result=completeTask(args.reference);break;case"music_search":result={success:true,action:{type:"music",query:String(args.query||"").trim()||"romantic songs",url:"https://youtube.com/playlist?list=PL-ER7jNwYADztaCaTFnTMGBoGWaIUQ0K4&si=6o-Ln9w2WHvlUKgt",playlist:true}};break;case"get_tasks":result={success:true,tasks};break;case"get_daily_plan":result={success:true,plan:dailyPlan()};break;case"get_next_action":result={success:true,nextAction:nextAction()};break;case"search_knowledge":result={success:true,results:knowledgeSearch(args.query)};break;case"web_search":result=await webSearch(args.query);break;default:return {success:false,error:"Tool not allowed"};} logAction(tool,args,result); return result; }
 function verifyTool(tool,result){ if(!result||result.success!==true)return {verified:false,reason:result?.error||"Tool failed"}; if(tool==="save_memory")return {verified:Boolean(result.memory?.id),reason:"Memory record verified"}; if(tool==="create_task"){const id=result.task?.id;return {verified:Boolean(id&&tasks.some(t=>t.id===id)),reason:"Task existence verified"};} if(tool==="complete_task"){const id=result.task?.id;const task=tasks.find(t=>t.id===id);return {verified:Boolean(task&&task.status==="done"),reason:"Task completion verified"};} return {verified:true,reason:"Result structure verified"}; }
 
+function localBrain(message, reason = "") {
+  const intent = detectIntent(message);
+  const next = nextAction();
+  if (intent === "greeting") return "नमस्ते जी। Amvexa यहाँ है।";
+  if (intent === "question") return "मैंने आपकी बात समझी। AI backend इस समय उपलब्ध नहीं है, लेकिन मेरा local brain और आपकी saved memory/tasks अभी भी active हैं।";
+  if (intent === "conversation") return "जी, मैं यहीं हूँ। Backend AI अभी उपलब्ध नहीं है, लेकिन हम बातचीत जारी रख सकते हैं।";
+  if (intent === "planning") return next.type === "task"
+    ? "आपके खुले काम में अगला action: " + next.title
+    : "अभी कोई active task नहीं है। हम पहला concrete task तय कर सकते हैं।";
+  if (intent === "tasks") {
+    const open = tasks.filter(t => t.status !== "done");
+    return open.length ? "आपके active tasks:\n" + open.map((t,i) => (i+1) + ". " + t.title).join("\n") : "अभी कोई active task नहीं है।";
+  }
+  if (intent === "recall") {
+    const found = memorySearch(message, 5);
+    return found.length ? found.map((m,i) => (i+1) + ". " + m.content).join("\n") : "Matching memory अभी नहीं मिली।";
+  }
+  return "मैंने आपका command समझ लिया, लेकिन AI backend अभी उपलब्ध नहीं है। " + (reason ? "Connection fallback active है।" : "");
+}
+
 function assistantModeFallback() {
   const open = tasks.filter(t => t.status !== "done");
   if (open.length) return "Mera operating mode clear hai: context samajhna → priority nikalna → action lena → execution verify karna → seekhna.\n\nAbhi next action: " + open[0].title + ".";
