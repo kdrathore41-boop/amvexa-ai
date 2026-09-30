@@ -162,7 +162,7 @@ function syncGoals() {
 
 function detectIntent(message) {
   const text = String(message || "").toLowerCase().trim();
-  if (/\b(remember|save|store|note|yaad rakh(?:o|na)?)\b/.test(text) || /\bmera naam\s+.+?(?:hai|yaad rakh)/i.test(text) || /\b(my name is)\b/i.test(text)) return "memory";
+  if (/\b(remember|save|store|note|yaad rakh(?:o|na)?)\b/.test(text) || /\bmera naam\s+.+?(?:hai|yaad rakh)/i.test(text) || /\b(my name is)\b/i.test(text) || /मेरा नाम\s+.+?(?:है|याद रख|याद रखना|याद रखो)/i.test(text) || /याद\s+रख(?:ो|ना|िए)?/i.test(text)) return "memory";
   if (/\b(what do you remember|what do you know about me|what is my name|what's my name|who am i|recall|yaad hai|mere baare mein|mere baare me)\b/.test(text) || /^\s*(mera naam|my name)\s+(kya|what)\b/i.test(text)) return "recall";
   if (/\b(complete|finish|done|mark)\b.*\b(task|todo)\b/.test(text)) return "task_complete";
   if (/\b(show|list|my|mere)\b.*\b(tasks?|todos?)\b/.test(text) || /(mere|aaj|aj|today|jaruri|zaroori|important).*(kaam|task|todo)/.test(text) || /(kaam|tasks?|todos?).*(batao|dikhao|dikhaiye|bataiye|show|list)/.test(text)) return "tasks";
@@ -176,7 +176,7 @@ function detectIntent(message) {
 }
 
 function extractMemory(message) {
-  const identity = String(message || "").match(/^\s*(?:mera naam|my name)\s+(.+?)(?:\s+(?:hai|is|h)\b|\s+(?:yaad rakh|yaad rakho|yaad rakhna)\b|$)/i);
+  const identity = String(message || "").match(/^\s*(?:mera naam|my name|मेरा नाम)\s+(.+?)(?:\s+(?:hai|is|h|है)\b|\s+(?:yaad rakh|yaad rakho|yaad rakhna|याद रख|याद रखना|याद रखो)\b|\s*[।.!?]|$)/i);
   if (identity) return "User ka naam " + identity[1].trim();
   return message.replace(/^\s*(remember|save|store|note|yaad rakh(?:o|na)?)\s*(this|that|ye|yah|ki)?\s*[:,-]?\s*/i, "").trim();
 }
