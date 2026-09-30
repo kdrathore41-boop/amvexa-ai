@@ -6,8 +6,8 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 10000;
 const ROOT = path.join(__dirname, "..");
-const VERSION = "4.0";
-const RELEASE = "1.1.0";
+const VERSION = "4.1";
+const RELEASE = "1.2.0";
 
 const FILES = {
   memory: path.join(__dirname, "memory.json"),
@@ -16,7 +16,8 @@ const FILES = {
   context: path.join(__dirname, "context.json"),
   audit: path.join(__dirname, "audit.json"),
   knowledge: path.join(__dirname, "knowledge.json"),
-  conversation: path.join(__dirname, "conversation.json")
+  conversation: path.join(__dirname, "conversation.json"),
+  intelligence: path.join(__dirname, "intelligence.json")
 };
 
 const MAX = {
@@ -25,7 +26,8 @@ const MAX = {
   goals: 50,
   audit: 200,
   knowledge: 100,
-  conversation: 30
+  conversation: 30,
+  patterns: 100
 };
 
 app.use(cors());
@@ -87,6 +89,8 @@ let audit = Array.isArray(readJson(FILES.audit, [])) ? readJson(FILES.audit, [])
 let knowledge = Array.isArray(readJson(FILES.knowledge, [])) ? readJson(FILES.knowledge, []) : [];
 let context = readJson(FILES.context, {});
 let conversation = Array.isArray(readJson(FILES.conversation, [])) ? readJson(FILES.conversation, []) : [];
+let intelligence = readJson(FILES.intelligence, { version: 1, signals: [], patterns: [], preferences: [], stats: { messages: 0, taskRequests: 0, memoryRequests: 0, researchRequests: 0, planningRequests: 0 } });
+if (!intelligence || typeof intelligence !== "object") intelligence = { version: 1, signals: [], patterns: [], preferences: [], stats: {} };
 
 function saveAll() {
   writeJson(FILES.memory, memory.slice(-MAX.memory));
@@ -96,6 +100,7 @@ function saveAll() {
   writeJson(FILES.knowledge, knowledge.slice(-MAX.knowledge));
   writeJson(FILES.context, context);
   writeJson(FILES.conversation, conversation.slice(-MAX.conversation));
+  writeJson(FILES.intelligence, intelligence);
 }
 
 function logAction(tool, args, result) {
@@ -177,8 +182,7 @@ function extractMemory(message) {
 }
 
 function taskFromMessage(message) {
-  let title = String(message || "").trim();
-  title = title.replace(/^\s*[“"']?\s*(?:ek\s+)?(?:task|tast|todo)\s+(?:add|create|bana)\s+(?:karo|karna|do)\b\s*[,;:\-]?\s*/i, "");
+  let title = String(message || "").trim();  title = title.replace(/^\s*[“"']?\s*(?:ek\s+)?(?:task|tast|todo)\s+(?:add|create|bana)\s+(?:karo|karna|do)\b\s*[,;:\-]?\s*/i, "");
   title = title.replace(/^\s*[“"']?\s*(?:add|create|creat|make|set|new)\s+(?:a\s+)?(?:task|tast|todo)\b\s*(?:karo|karna|do)?\s*[,;:\-]?\s*/i, "");
   title = title.replace(/[”"']\s*$/, "").trim();
   return title;
@@ -187,13 +191,81 @@ function taskFromMessage(message) {
 function nextAction() { const high = tasks.find(t => t.status !== "done" && t.priority === "high"); if (high) return { type: "task", title: high.title, taskId: high.id, priority: high.priority }; const open = tasks.find(t => t.status !== "done"); if (open) return { type: "task", title: open.title, taskId: open.id, priority: open.priority }; return { type: "setup", title: "Create your first task or goal" }; }
 function dailyPlan() { return { generatedAt: new Date().toISOString(), tasks: tasks.filter(t => t.status !== "done").sort((a,b) => ({high:0,normal:1,low:2}[a.priority] ?? 1) - ({high:0,normal:1,low:2}[b.priority] ?? 1)).slice(0,5), nextAction: nextAction() }; }
 function contextSummary() { return { memoryCount: memory.length, taskCount: tasks.length, openTasks: tasks.filter(t => t.status !== "done").length, goalCount: goals.length, knowledgeCount: knowledge.length }; }
+
+function updatePersonalAlgorithm(message, intent) {
+  const text = String(message || "").trim();
+  if (!text) return intelligence;
+  const lower = text.toLowerCase();
+  intelligence.stats = intelligence.stats || {};
+  intelligence.stats.messages = (intelligence.stats.messages || 0) + 1;
+  const counterMap = { task_complete: "taskRequests", tasks: "taskRequests", create_task: "taskRequests", planning: "planningRequests", memory: "memoryRequests", research: "researchRequests" };
+  if (counterMap[intent]) intelligence.stats[counterMap[intent]] = (intelligence.stats[counterMap[intent]] || 0) + 1;
+
+  const signals = [];
+  if (/\b(urgent|important|jaruri|zaroori|jaldi|asap|deadline|target)\b/i.test(lower)) signals.push("priority_sensitive");
+  if (/\b(yaad|remember|hamesha|always)\b/i.test(lower)) signals.push("memory_or_continuity");
+  if (/\b(kal|tomorrow|aaj|today|deadline|date|tarikh)\b/i.test(lower)) signals.push("time_sensitive");
+  if (/\b(next|agla|aage|continue|next step)\b/i.test(lower)) signals.push("next_step_oriented");
+  if (/\b(plan|planning|organize|schedule|routine)\b/i.test(lower)) signals.push("planning_oriented");
+  if (/\b(research|search|latest|current|find out)\b/i.test(lower)) signals.push("research_oriented");
+  if (/\b(normal|casual|baat|bore|chat)\b/i.test(lower) && intent === "conversation") signals.push("conversation_mode");
+
+  const now = new Date().toISOString();
+  signals.forEach(signal => {
+    const existing = intelligence.patterns.find(p => p.key === signal);
+    if (existing) {
+      existing.count = (existing.count || 0) + 1;
+      existing.lastSeen = now;
+    } else {
+      intelligence.patterns.push({ key: signal, count: 1, confidence: 0.25, firstSeen: now, lastSeen: now });
+    }
+  });
+  intelligence.patterns = intelligence.patterns.slice(-MAX.patterns);
+  intelligence.patterns.forEach(p => {
+    p.confidence = Math.min(0.95, 0.25 + Math.min(0.70, (p.count || 1) * 0.05));
+  });
+
+  if (/\b(hindi|हिंदी|hinglish)\b/i.test(lower)) {
+    if (!intelligence.preferences.includes("Hindi/Hinglish preferred")) intelligence.preferences.push("Hindi/Hinglish preferred");
+  }
+  if (/\b(no|nahi|nahin)\b.*\b(story|long|generic|repeat|repetition)\b/i.test(lower)) {
+    if (!intelligence.preferences.includes("Avoid unnecessary repetition and long explanations")) intelligence.preferences.push("Avoid unnecessary repetition and long explanations");
+  }
+
+  intelligence.signals.push({ id: "sig_" + Date.now(), at: now, intent, signals });
+  intelligence.signals = intelligence.signals.slice(-MAX.patterns);
+  writeJson(FILES.intelligence, intelligence);
+  return intelligence;
+}
+
+function personalAlgorithmContext() {
+  const patterns = (intelligence.patterns || []).filter(p => p.count >= 2).sort((a,b) => (b.count || 0) - (a.count || 0)).slice(0, 10);
+  const prefs = (intelligence.preferences || []).slice(-10);
+  const stats = intelligence.stats || {};
+  return [
+    "Personal Algorithm Intelligence:",
+    patterns.length ? "Observed patterns: " + patterns.map(p => p.key + " (" + p.count + " signals, confidence " + Math.round((p.confidence || 0) * 100) + "%)").join(", ") : "Observed patterns: still learning",
+    prefs.length ? "Preferences: " + prefs.join("; ") : "Preferences: still learning",
+    "Interaction stats: " + JSON.stringify(stats),
+    "Use these patterns to personalize planning, tone and next-step suggestions. Do not invent patterns or claim certainty. Never manipulate the user."
+  ].join("\n");
+}
+
+function intelligenceSnapshot() {
+  return {
+    version: intelligence.version || 1,
+    patterns: (intelligence.patterns || []).map(({key,count,confidence,lastSeen}) => ({key,count,confidence,lastSeen})),
+    preferences: intelligence.preferences || [],
+    stats: intelligence.stats || {}
+  };
+}
 function addConversation(role, content) { conversation.push({ id: `turn_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, role, content: String(content || "").slice(0,5000), at: new Date().toISOString() }); conversation = conversation.slice(-MAX.conversation); writeJson(FILES.conversation, conversation); }
 function conversationContext(limit = 12) { return conversation.slice(-limit).map(turn => ({ role: turn.role === "assistant" ? "model" : "user", parts: [{ text: turn.content }] })); }
 
 async function generateAIResponse(message, extraContext = "", useWeb = false) {
   const apiKey = process.env.GEMINI_API_KEY; if (!apiKey) return { success:false, error:"AI provider is not configured" };
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-  const system = ["You are Amvexa, a personal AI assistant for one user.","You are not a command parser. Hold a natural, continuous conversation.","Do not bring up an older task, topic, question, or plan unless the current message clearly refers to it.","If the user asks for normal/casual conversation, reply naturally and briefly; do not turn it into task planning.","You are Amvexa, the user's own personal assistant software. Never claim that Amazon, Google, OpenAI, or another company created you unless the user explicitly asks about the underlying model/provider.","Understand Hindi, Hinglish and English and normally reply in natural Hindi/Hinglish unless the user asks otherwise.","Be concise but thoughtful. Do not repeat generic greetings or ask what you can do after every message.","Use recent conversation context and relevant remembered facts.","Never claim an action happened unless the execution result confirms it.","When current information is needed, use supplied web research rather than inventing facts.","You may suggest the next useful step when appropriate, without being pushy.",extraContext].filter(Boolean).join("\n");
+  const system = ["You are Amvexa, a personal AI assistant for one user.","You are not a command parser. Hold a natural, continuous conversation.","Do not bring up an older task, topic, question, or plan unless the current message clearly refers to it.","If the user asks for normal/casual conversation, reply naturally and briefly; do not turn it into task planning.","You are Amvexa, the user's own personal assistant software. Never claim that Amazon, Google, OpenAI, or another company created you unless the user explicitly asks about the underlying model/provider.","Understand Hindi, Hinglish and English and normally reply in natural Hindi/Hinglish unless the user asks otherwise.","Be concise but thoughtful. Do not repeat generic greetings or ask what you can do after every message.","Use recent conversation context and relevant remembered facts.","Never claim an action happened unless the execution result confirms it.","When current information is needed, use supplied web research rather than inventing facts.","You may suggest the next useful step when appropriate, without being pushy.","Operate with a JARVIS/FRIDAY-style loop: understand context, plan, execute, monitor, verify and learn. Be proactive when the next action is clear, but do not fabricate actions.","Use the Personal Algorithm Intelligence supplied below to adapt to the user. Treat it as learned signals, not absolute truth.","Low-risk internal planning can proceed without repeated confirmation; consequential external actions require confirmation.",extraContext].filter(Boolean).join("\n");
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 20000);
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method:"POST", body:JSON.stringify({ system_instruction:{parts:[{text:system}]}, contents:[...conversationContext(),{role:"user",parts:[{text:message}]}], ...(useWeb?{tools:[{google_search:{}}]}:{}), generationConfig:{temperature:0.7,maxOutputTokens:700} }), headers:{"Content-Type":"application/json","x-goog-api-key":apiKey}, signal:controller.signal });
@@ -203,7 +275,7 @@ async function generateAIResponse(message, extraContext = "", useWeb = false) {
   } catch(error){ return {success:false,error:error?.name==="AbortError"?"AI provider timed out":"AI provider unavailable"}; } finally{clearTimeout(timeout);}
 }
 
-async function buildAssistantResponse(message, toolResult, useWeb=false) { const memoryContext=memorySearch(message,5).map(m=>m.content).join("\n"); const webContext=toolResult?.success&&toolResult?.results?.length?toolResult.results.slice(0,6).map(r=>`${r.title}\n${r.content}\n${r.url}`).join("\n\n"):""; const extra=[memoryContext?`Relevant remembered facts:\n${memoryContext}`:"",webContext?`Fresh web research:\n${webContext}`:""].filter(Boolean).join("\n\n"); return generateAIResponse(message,extra,useWeb); }
+async function buildAssistantResponse(message, toolResult, useWeb=false) { const memoryContext=memorySearch(message,5).map(m=>m.content).join("\n"); const webContext=toolResult?.success&&toolResult?.results?.length?toolResult.results.slice(0,6).map(r=>`${r.title}\n${r.content}\n${r.url}`).join("\n\n"):""; const extra=[personalAlgorithmContext(),memoryContext?`Relevant remembered facts:\n${memoryContext}`:"",webContext?`Fresh web research:\n${webContext}`:""].filter(Boolean).join("\n\n"); return generateAIResponse(message,extra,useWeb); }
 
 async function webSearch(query) {
   const apiKey=process.env.TAVILY_API_KEY; if(!apiKey)return {success:false,error:"Web intelligence is not configured",results:[]};
@@ -246,13 +318,21 @@ app.get("/api/memory", (req,res)=>res.json({success:true,memory}));
 app.get("/api/tasks", (req,res)=>res.json({success:true,tasks}));
 app.get("/api/context", (req,res)=>res.json({success:true,context:contextSummary()}));
 app.get("/api/conversation", (req,res)=>res.json({success:true,conversation:conversation.slice(-MAX.conversation)}));
-app.get("/api/proactive", (req,res)=>res.json({success:true,shouldSpeak:false,message:""}));
+app.get("/api/intelligence", (req,res)=>res.json({success:true,intelligence:intelligenceSnapshot()}));
+app.get("/api/proactive", (req,res)=>{
+  const next=nextAction();
+  const open=tasks.filter(t=>t.status!=="done");
+  const shouldSpeak=Boolean(open.length && next.type==="task" && next.priority==="high");
+  const message=shouldSpeak ? "Aapka high-priority kaam pending hai: " + next.title : "";
+  res.json({success:true,shouldSpeak,message,nextAction:next});
+});
 
 app.post("/api/chat", async (req,res)=>{
   const message=String(req.body?.message||"").trim();
   if(!message)return res.status(400).json({success:false,error:"Message is required"});
   addConversation("user",message);
   const plan=planTool(message);
+  updatePersonalAlgorithm(message, plan.tool === "create_task" ? "planning" : plan.tool === "get_tasks" ? "tasks" : plan.tool === "complete_task" ? "task_complete" : plan.tool || detectIntent(message));
   let toolResult=null; let verification=null; let responseText="";
   try{
     if(!plan.tool && /^(mujhse|mujh se)\s+(normal|casual)\s+baat\s*(karo|karna|kijiye)?[.!?]*$/i.test(message)){responseText="Bilkul 😊 Aap aaram se baat kijiye. Main yahin hoon.";}
