@@ -675,15 +675,26 @@
         listening = false;
         voiceButton.textContent = "◉";
         statusText.textContent = "Online";
-        showToast(event.error === "not-allowed"
-          ? "Microphone permission is required."
-          : "I couldn't hear that. Please try again.");
+        const messages = {
+          "not-allowed": "Microphone permission is required.",
+          "service-not-allowed": "Voice service is blocked on this device.",
+          "no-speech": "No speech detected. Please try again.",
+          "audio-capture": "Microphone could not be accessed.",
+          "network": "Voice recognition network error. Please try again."
+        };
+        showToast(messages[event.error] || "Voice input failed. Please try again.");
       };
 
       recognition.onend = () => {
         listening = false;
-        voiceButton.textContent = handsFree ? "◉" : "◉";
+        voiceButton.textContent = "◉";
         if (statusText.textContent === "Listening...") statusText.textContent = "Online";
+        if (handsFree && !sendButton.disabled) {
+          setTimeout(() => {
+            if (!handsFree || listening || sendButton.disabled) return;
+            try { recognition.start(); } catch (_) {}
+          }, 700);
+        }
       };
     }
 
@@ -888,6 +899,7 @@
 
         if (handsFree && recognition && !listening) {
           setTimeout(() => {
+            if (!handsFree || listening || sendButton.disabled) return;
             try { recognition.start(); } catch (_) {}
           }, Math.max(900, Math.min(2500, assistantMessage.length * 35)));
         }
