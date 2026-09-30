@@ -361,11 +361,21 @@ app.post("/api/chat", async (req,res)=>{
     }else if(plan.tool==="recall_memory"){
       const found=toolResult?.memories||[]; const name=found.find(m=>/^User ka naam\s+.+$/i.test(m.content))?.content.match(/^User ka naam\s+(.+)$/i)?.[1]?.trim(); responseText=(/\b(mera naam|my name|what is my name|what's my name)\b/i.test(message)&&name)?`Aapka naam ${name}.`:found.length?found.map((m,i)=>`${i+1}. ${m.content}`).join("\n"):"Abhi mujhe matching memory nahi mili.";
     }else if(plan.tool==="web_search"){responseText=formatWebResponse(toolResult);}
-    else if(plan.tool){responseText=JSON.stringify(toolResult);}
+    else if(plan.tool==="create_task"&&verification?.verified){
+      responseText="Task set kar diya: \"" + toolResult.task.title + "\". Priority: " + toolResult.task.priority + ". Execution verified.";
+    }else if(plan.tool==="complete_task"&&verification?.verified){
+      responseText="Done. Task \"" + toolResult.task.title + "\" complete mark ho gaya. Execution verified.";
+    }else if(plan.tool==="get_tasks"){
+      const open=tasks.filter(t=>t.status!=="done");
+      responseText=open.length?open.map((t,i)=>(i+1)+". "+t.title+" — "+t.priority).join("\\n"):"Abhi koi active task nahi hai.";
+    }else if(plan.tool==="get_daily_plan"){
+      const items=toolResult?.plan?.tasks||[];
+      responseText=items.length?"Aaj ka execution order:\\n"+items.map((t,i)=>(i+1)+". "+t.title+" — "+t.priority).join("\\n"):"Abhi koi active task nahi hai.";
+    }else if(plan.tool){responseText=JSON.stringify(toolResult);}
     else {const ai=await buildAssistantResponse(message,null,false);responseText=ai.success?ai.text:localBrain(message,ai.error);}
     }  }catch(error){responseText=localBrain(message,error?.message||"Unknown error");}
   addConversation("assistant",responseText);
-  return res.json({success:true,response:responseText,tool:plan.tool||null,verification,data:{understanding:{intent:plan.tool==="create_task"?"planning":plan.tool==="complete_task"?"task_complete":plan.tool==="get_tasks"?"tasks":detectIntent(message)}}});
+  return res.json({success:true,response:responseText,tool:plan.tool||null,verification,data:{understanding:{intent:plan.tool==="create_task"?"planning":plan.tool==="complete_task"?"task_complete":plan.tool==="get_tasks"?"tasks":detectIntent(message)},execution:{tool:plan.tool||null,action:toolResult?.action||null,verified:Boolean(verification?.verified),verification:verification||null}}});
 });
 
 app.listen(PORT,()=>console.log(`Amvexa AI ${VERSION} ${RELEASE} listening on ${PORT}`));
