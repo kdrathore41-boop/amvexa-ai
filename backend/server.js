@@ -346,11 +346,23 @@ function verifyTool(tool,result){
 }
 
 function buildDecision(next){
-  if(next?.type==="task") return {operation:"work_on_task",target:next.title,taskId:next.taskId||null,goalId:next.goalId||null,reason:next.reason||"next_action",safeToExecute:false,requiresUserAction:true};
-  if(next?.type==="goal") return {operation:"plan_goal",target:next.title,taskId:null,goalId:next.goalId||null,reason:next.reason||"active_goal_without_task",safeToExecute:true,requiresUserAction:false};
-  return {operation:"setup",target:next?.title||"Create your first task or goal",taskId:null,goalId:null,reason:"no_active_work",safeToExecute:true,requiresUserAction:false};
+  const base={
+    operation:"setup",
+    target:next?.title||"Create your first task or goal",
+    taskId:null,
+    goalId:null,
+    reason:"no_active_work",
+    safeToExecute:true,
+    requiresUserAction:false
+  };
+  if(next?.type==="task"){
+    return {...base,operation:"work_on_task",target:next.title,taskId:next.taskId||null,goalId:next.goalId||null,reason:next.reason||"next_action",safeToExecute:false,requiresUserAction:true};
+  }
+  if(next?.type==="goal"){
+    return {...base,operation:"plan_goal",target:next.title,goalId:next.goalId||null,reason:next.reason||"active_goal_without_task"};
+  }
+  return base;
 }
-
 function localBrain(message, reason = "") {
   const intent = detectIntent(message);
   const next = nextAction();
