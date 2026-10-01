@@ -417,8 +417,10 @@ app.post("/api/jarvis/step", async (req,res)=>{
     }
     return res.json({success:true,action:"none",result:{message:"No safe internal action available"},verification:{verified:true,reason:"Nothing to execute"},nextAction:next});
   }
-  updatePersonalAlgorithm("jarvis surfaced next action: "+next.title, "next-step");
-  res.json({success:true,action:"surface_next_action",result:{nextAction:next},verification:{verified:true,reason:"Next action state verified"},nextAction:jarvisContext().nextAction,learning:intelligenceSnapshot()});
+  const decision = {operation:next.type === "task" ? "work_on_task" : next.type, target:next.title, taskId:next.taskId || null, goalId:next.goalId || null, reason:next.reason || "next_action", safeToExecute:false, requiresUserAction:next.type === "task"};
+  updatePersonalAlgorithm("jarvis decision: "+next.title+" ["+(next.reason||"next_action")+"]", "next-step");
+  const verifiedState=jarvisContext();
+  res.json({success:true,action:"decision_ready",decision,result:{nextAction:verifiedState.nextAction,situation:verifiedState.situation},verification:{verified:true,reason:"Decision and current situation state verified"},nextAction:verifiedState.nextAction,learning:intelligenceSnapshot()});
 });
 
 
