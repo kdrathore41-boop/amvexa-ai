@@ -214,7 +214,7 @@ function taskFromMessage(message) {
   return title;
 }
 
-function nextAction() { const high = tasks.find(t => t.status !== "done" && t.priority === "high"); if (high) return { type: "task", title: high.title, taskId: high.id, priority: high.priority }; const open = tasks.find(t => t.status !== "done"); if (open) return { type: "task", title: open.title, taskId: open.id, priority: open.priority }; return { type: "setup", title: "Create your first task or goal" }; }
+function nextAction() { const open=tasks.filter(t=>t.status!=="done"); const now=Date.now(); const due=open.filter(t=>t.dueAt).sort((a,b)=>new Date(a.dueAt)-new Date(b.dueAt)); const overdue=due.find(t=>new Date(t.dueAt).getTime()<=now); const high=open.find(t=>t.priority==="high"); const pick=overdue||high||due[0]||open[0]; if(pick)return {type:"task",title:pick.title,taskId:pick.id,priority:pick.priority,dueAt:pick.dueAt||null,overdue:Boolean(pick.dueAt&&new Date(pick.dueAt).getTime()<=now)}; return {type:"setup",title:"Create your first task or goal"}; }
 function dailyPlan() { return { generatedAt: new Date().toISOString(), tasks: tasks.filter(t => t.status !== "done").sort((a,b) => ({high:0,normal:1,low:2}[a.priority] ?? 1) - ({high:0,normal:1,low:2}[b.priority] ?? 1)).slice(0,5), nextAction: nextAction() }; }
 function contextSummary() { return { memoryCount: memory.length, taskCount: tasks.length, openTasks: tasks.filter(t => t.status !== "done").length, goalCount: goals.length, knowledgeCount: knowledge.length }; }
 
