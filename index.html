@@ -907,6 +907,9 @@
         statusText.textContent = "Online";
         voiceCommand = false;
 
+        // Refresh JARVIS state immediately after execution/verification.
+        setTimeout(checkProactive, 350);
+
         if (handsFree && recognition && !listening) {
           setTimeout(() => {
             if (!handsFree || listening || sendButton.disabled) return;
