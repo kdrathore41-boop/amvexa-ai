@@ -412,7 +412,8 @@ app.get("/api/proactive",(req,res)=>{
   }
 
   const shouldSpeak=Boolean(signal && (signal.priority==="high" || signal.type==="goal_followup"));
-  res.json({success:true,shouldSpeak,message:signal?.message||"",signal,nextAction:next,decision,context:{openTasks:open.length,highPriorityTasks:high.length,activeGoals:activeGoals.length,dueSoonTasks:dueSoonTasks.length,activeGoal:activeGoal?{id:activeGoal.id,title:activeGoal.title||activeGoal.name||"active goal",taskCount:goalTaskCount,openTaskCount:goalOpenTaskCount}:null,checkedAt:new Date().toISOString()}});
+  const checkedAt=new Date().toISOString();
+  res.json({success:true,shouldSpeak,message:signal?.message||"",signal,nextAction:next,decision,checkedAt,context:{openTasks:open.length,highPriorityTasks:high.length,activeGoals:activeGoals.length,dueSoonTasks:dueSoonTasks.length,activeGoal:activeGoal?{id:activeGoal.id,title:activeGoal.title||activeGoal.name||"active goal",taskCount:goalTaskCount,openTaskCount:goalOpenTaskCount}:null,checkedAt}});
 });
 app.get("/api/jarvis/decision",(req,res)=>{
   const state=jarvisContext();
@@ -422,7 +423,7 @@ app.get("/api/jarvis/decision",(req,res)=>{
     : next?.type==="goal"
       ? {operation:"plan_goal",target:next.title,taskId:null,goalId:next.goalId||null,reason:next.reason||"active_goal_without_task",safeToExecute:true,requiresUserAction:false}
       : {operation:"setup",target:next?.title||"Create your first task or goal",taskId:null,goalId:null,reason:"no_active_work",safeToExecute:true,requiresUserAction:false};
-  res.json({success:true,decision,state});
+  res.json({success:true,decision,state,checkedAt:new Date().toISOString()});
 });
 
 app.post("/api/jarvis/step", async (req,res)=>{
