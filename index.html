@@ -923,6 +923,9 @@
       statusText.textContent = "Thinking...";
 
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
         const response = await fetch(`${API_URL}/api/chat`, {
           method: "POST",
           headers: {
@@ -930,8 +933,11 @@
           },
           body: JSON.stringify({
             message: message
-          })
+          }),
+          signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
           throw new Error(`Server returned ${response.status}`);
@@ -1002,6 +1008,7 @@
 
       } catch (error) {
         console.error("Amvexa connection error:", error);
+        if (error?.name === "AbortError") showToast("Backend response में 30 सेकंड से ज्यादा लग रहा है।");
 
         addMessage(
           "assistant",
