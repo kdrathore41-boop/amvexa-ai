@@ -763,6 +763,34 @@
       window.speechSynthesis.speak(utterance);
     }
 
+    async function enableNotifications() {
+      if (!("Notification" in window)) return false;
+      if (Notification.permission === "granted") return true;
+      if (Notification.permission === "denied") return false;
+      try {
+        return (await Notification.requestPermission()) === "granted";
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function notifyProactive(message, title = "Amvexa reminder") {
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      try {
+        navigator.serviceWorker?.ready.then(registration => {
+          registration.showNotification("Amvexa", {
+            body: String(message || ""),
+            tag: "amvexa-proactive",
+            renotify: true,
+            icon: "/icon-192.png",
+            badge: "/icon-192.png"
+          });
+        }).catch(() => {
+          try { new Notification(title, {body: String(message || ""), tag: "amvexa-proactive"}); } catch (_) {}
+        });
+      } catch (_) {}
+    }
+
     function setCommand(text) {
       input.value = text;
       input.focus();
@@ -836,6 +864,7 @@
         sessionStorage.setItem("amvexa_proactive", key);
         sessionStorage.setItem("amvexa_proactive_at", String(now));
         addMessage("assistant", data.message);
+        notifyProactive(data.message, signal.type || "Amvexa reminder");
         speak(data.message);
 
         // JARVIS/FRIDAY: surface the next useful operation, not just a reminder.
