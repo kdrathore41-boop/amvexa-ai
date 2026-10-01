@@ -737,6 +737,15 @@
       utterance.lang = "hi-IN";
       utterance.rate = 0.96;
       utterance.pitch = 1;
+      utterance.onend = () => {
+        if (handsFree && recognition && !listening && !sendButton.disabled) {
+          if (voiceRestartTimer) clearTimeout(voiceRestartTimer);
+          voiceRestartTimer = setTimeout(() => {
+            if (!handsFree || listening || sendButton.disabled) return;
+            try { recognition.start(); } catch (_) {}
+          }, 500);
+        }
+      };
       window.speechSynthesis.speak(utterance);
     }
 
