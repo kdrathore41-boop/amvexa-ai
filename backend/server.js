@@ -403,6 +403,17 @@ app.get("/api/proactive",(req,res)=>{
   const shouldSpeak=Boolean(signal && (signal.priority==="high" || signal.type==="goal_followup"));
   res.json({success:true,shouldSpeak,message:signal?.message||"",signal,nextAction:next,context:{openTasks:open.length,highPriorityTasks:high.length,activeGoals:activeGoals.length,dueSoonTasks:dueSoonTasks.length,activeGoal:activeGoal?{id:activeGoal.id,title:activeGoal.title||activeGoal.name||"active goal",taskCount:goalTaskCount,openTaskCount:goalOpenTaskCount}:null,checkedAt:new Date().toISOString()}});
 });
+app.get("/api/jarvis/decision",(req,res)=>{
+  const state=jarvisContext();
+  const next=state.nextAction;
+  const decision=next?.type==="task"
+    ? {operation:"work_on_task",target:next.title,taskId:next.taskId||null,goalId:next.goalId||null,reason:next.reason||"next_action",safeToExecute:false,requiresUserAction:true}
+    : next?.type==="goal"
+      ? {operation:"plan_goal",target:next.title,taskId:null,goalId:next.goalId||null,reason:next.reason||"active_goal_without_task",safeToExecute:true,requiresUserAction:false}
+      : {operation:"setup",target:next?.title||"Create your first task or goal",taskId:null,goalId:null,reason:"no_active_work",safeToExecute:true,requiresUserAction:false};
+  res.json({success:true,decision,state});
+});
+
 app.post("/api/jarvis/step", async (req,res)=>{
   const state=jarvisContext();
   const next=state.nextAction;
