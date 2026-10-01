@@ -357,7 +357,7 @@ function buildDecision(next){
     requiresUserAction:false
   };
   if(next?.type==="task"){
-    return {...base,operation:"work_on_task",target:next.title,taskId:next.taskId||null,goalId:next.goalId||null,reason:next.reason||"next_action",safeToExecute:false,requiresUserAction:true};
+    return {...base,operation:"work_on_task",target:next.title,taskId:next.taskId||null,goalId:next.goalId||null,reason:next.reason||"next_action",priority:next.priority||"normal",dueAt:next.dueAt||null,overdue:Boolean(next.overdue),safeToExecute:false,requiresUserAction:true};
   }
   if(next?.type==="goal"){
     return {...base,operation:"plan_goal",target:next.title,goalId:next.goalId||null,reason:next.reason||"active_goal_without_task"};
