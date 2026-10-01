@@ -783,11 +783,21 @@
         if (!response.ok) return;
         const data = await response.json();
         if (!data.shouldSpeak || !data.message) return;
-        const key = "proactive|" + new Date().toISOString().slice(0, 10) + "|" + data.message;
+
+        const signal = data.signal || {};
+        const key = "proactive|" + (signal.type || "signal") + "|" + (signal.reason || "") + "|" + (signal.suggestedAction?.taskId || "") + "|" + data.message;
         if (sessionStorage.getItem("amvexa_proactive") === key) return;
+
         sessionStorage.setItem("amvexa_proactive", key);
         addMessage("assistant", data.message);
         speak(data.message);
+
+        // JARVIS/FRIDAY: surface the next useful operation, not just a reminder.
+        if (signal.suggestedAction?.type === "task" && signal.suggestedAction.title) {
+          setCommand("इस काम पर आगे बढ़ते हैं: " + signal.suggestedAction.title);
+        } else if (signal.type === "goal_followup") {
+          setCommand("मेरे active goal का अगला concrete task तय करो");
+        }
       } catch (_) {}
     }
 
