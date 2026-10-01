@@ -947,6 +947,11 @@
 
       addMessage("user", message);
 
+      // Ask once, from a real user action, so proactive reminders can use native notifications.
+      if ("Notification" in window && Notification.permission === "default") {
+        enableNotifications().catch(() => {});
+      }
+
       input.value = "";
       sendButton.disabled = true;
       statusText.textContent = "Thinking...";
