@@ -10,6 +10,13 @@ const ROOT = path.join(__dirname, "..");
 const VERSION = "4.1";
 const RELEASE = "1.2.0";
 
+const PUSH_DATA_DIR = process.env.PUSH_DATA_DIR || __dirname;
+try {
+  fs.mkdirSync(PUSH_DATA_DIR, { recursive: true });
+} catch (error) {
+  console.error("Unable to create push data directory:", error?.message || error);
+}
+
 const FILES = {
   memory: path.join(__dirname, "memory.json"),
   tasks: path.join(__dirname, "tasks.json"),
@@ -19,7 +26,7 @@ const FILES = {
   knowledge: path.join(__dirname, "knowledge.json"),
   conversation: path.join(__dirname, "conversation.json"),
   intelligence: path.join(__dirname, "intelligence.json"),
-  pushSubscriptions: path.join(__dirname, "push-subscriptions.json")
+  pushSubscriptions: path.join(PUSH_DATA_DIR, "push-subscriptions.json")
 };
 
 const MAX = {
