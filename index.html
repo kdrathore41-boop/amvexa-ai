@@ -809,7 +809,7 @@
       } catch (_) {}
     }
 
-    async function refreshMemoryStatus() {
+    async function refreshJarvisDecision() {\n      try {\n        const response = await fetch(`${API_URL}/api/jarvis/decision`);\n        if (!response.ok) return;\n        const data = await response.json();\n        window.amvexaJarvisDecision = data.decision || null;\n      } catch (_) {}\n    }\n\n    async function refreshMemoryStatus() {
       const memoryStatus = document.getElementById("memoryStatus");
       if (!memoryStatus) return;
 
@@ -917,6 +917,7 @@
 
         // Refresh JARVIS state immediately after execution/verification.
         setTimeout(checkProactive, 350);
+        refreshJarvisDecision();
 
         if (handsFree && recognition && !listening) {
           setTimeout(() => {
