@@ -797,6 +797,9 @@
           setCommand("इस काम पर आगे बढ़ते हैं: " + signal.suggestedAction.title);
         } else if (signal.type === "goal_followup") {
           setCommand("मेरे active goal का अगला concrete task तय करो");
+          fetch(API_URL + "/api/jarvis/step", {method:"POST"})
+            .then(() => refreshTaskStatus())
+            .catch(() => {});
         }
       } catch (_) {}
     }
