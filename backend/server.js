@@ -368,6 +368,24 @@ app.get("/api/proactive",(req,res)=>{
   const shouldSpeak=Boolean(signal && (signal.priority==="high" || signal.type==="goal_followup"));
   res.json({success:true,shouldSpeak,message:signal?.message||"",signal,nextAction:next,context:{openTasks:open.length,highPriorityTasks:high.length,activeGoals:activeGoals.length,checkedAt:new Date().toISOString()}});
 });
+app.post("/api/jarvis/step", async (req,res)=>{
+  const state=jarvisContext();
+  const next=state.nextAction;
+  if(!next || next.type==="setup"){
+    const goal=state.activeGoals?.find(g=>g.status!=="done");
+    if(goal){
+      const title="Goal: "+(goal.title||goal.name||"active goal")+" — पहला concrete action तय करना";
+      const result=await executeTool("create_task",{title,priority:"high"});
+      const verification=verifyTool("create_task",result);
+      updatePersonalAlgorithm("jarvis step goal to task", "planning");
+      return res.json({success:true,action:"create_task",result,verification,nextAction:jarvisContext().nextAction});
+    }
+    return res.json({success:true,action:"none",result:{message:"No safe internal action available"},verification:{verified:true,reason:"Nothing to execute"},nextAction:next});
+  }
+  updatePersonalAlgorithm("jarvis surfaced next action: "+next.title, "next-step");
+  res.json({success:true,action:"surface_next_action",result:{nextAction:next},verification:{verified:true,reason:"Next action state verified"},nextAction:jarvisContext().nextAction});
+});
+
 
 app.post("/api/chat", async (req,res)=>{
   const message=String(req.body?.message||"").trim();
