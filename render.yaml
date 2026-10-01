@@ -1,0 +1,13 @@
+services:
+  - type: cron
+    name: amvexa-push-runner
+    runtime: node
+    schedule: "*/5 * * * *"
+    buildCommand: "true"
+    startCommand: "node cron/push-run.mjs"
+    plan: 0.5c-512mb
+    envVars:
+      - key: AMVEXA_BASE_URL
+        sync: false
+      - key: PUSH_CRON_SECRET
+        sync: false
