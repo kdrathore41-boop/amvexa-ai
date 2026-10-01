@@ -48,3 +48,19 @@ self.addEventListener("notificationclick", event => {
     })
   );
 });
+
+
+self.addEventListener("push", event => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (_) {}
+  const title = data.title || "Amvexa reminder";
+  const options = {
+    body: data.body || "आपका Amvexa task due है।",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    tag: data.taskId ? "amvexa-task-" + data.taskId : "amvexa-reminder",
+    renotify: true,
+    data: {taskId: data.taskId || null}
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
