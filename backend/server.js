@@ -345,6 +345,12 @@ function verifyTool(tool,result){
  return {verified:true,reason:"Result structure verified"};
 }
 
+function buildDecision(next){
+  if(next?.type==="task") return {operation:"work_on_task",target:next.title,taskId:next.taskId||null,goalId:next.goalId||null,reason:next.reason||"next_action",safeToExecute:false,requiresUserAction:true};
+  if(next?.type==="goal") return {operation:"plan_goal",target:next.title,taskId:null,goalId:next.goalId||null,reason:next.reason||"active_goal_without_task",safeToExecute:true,requiresUserAction:false};
+  return {operation:"setup",target:next?.title||"Create your first task or goal",taskId:null,goalId:null,reason:"no_active_work",safeToExecute:true,requiresUserAction:false};
+}
+
 function localBrain(message, reason = "") {
   const intent = detectIntent(message);
   const next = nextAction();
@@ -387,7 +393,7 @@ app.get("/api/proactive",(req,res)=>{
   const high=open.filter(t=>t.priority==="high");
   const activeGoals=goals.filter(g=>g.status!=="done");
   const next=nextAction();
-  const decision=next?.type==="task"?{operation:"work_on_task",target:next.title,taskId:next.taskId||null,goalId:next.goalId||null,reason:next.reason||"next_action",safeToExecute:false,requiresUserAction:true}:next?.type==="goal"?{operation:"plan_goal",target:next.title,taskId:null,goalId:next.goalId||null,reason:next.reason||"active_goal_without_task",safeToExecute:true,requiresUserAction:false}:{operation:"setup",target:next?.title||"Create your first task or goal",taskId:null,goalId:null,reason:"no_active_work",safeToExecute:true,requiresUserAction:false};
+  const decision=buildDecision(next);
   const now=Date.now();
   const dueSoonTasks=open.filter(t=>t.dueAt).filter(t=>{const ms=new Date(t.dueAt).getTime()-now; return ms>0 && ms<=60*60*1000;});
   const activeGoal=activeGoals[0]||null;
