@@ -208,6 +208,14 @@ function nextAction() { const high = tasks.find(t => t.status !== "done" && t.pr
 function dailyPlan() { return { generatedAt: new Date().toISOString(), tasks: tasks.filter(t => t.status !== "done").sort((a,b) => ({high:0,normal:1,low:2}[a.priority] ?? 1) - ({high:0,normal:1,low:2}[b.priority] ?? 1)).slice(0,5), nextAction: nextAction() }; }
 function contextSummary() { return { memoryCount: memory.length, taskCount: tasks.length, openTasks: tasks.filter(t => t.status !== "done").length, goalCount: goals.length, knowledgeCount: knowledge.length }; }
 
+// JARVIS/FRIDAY operating state: context -> priority -> next action -> execution -> verification -> learning.
+function jarvisContext() {
+  const openTasks = tasks.filter(t => t.status !== "done");
+  const activeGoals = goals.filter(g => g.status !== "done");
+  const highPriority = openTasks.filter(t => t.priority === "high");
+  return { mode:"JARVIS/FRIDAY", context:contextSummary(), activeGoals:activeGoals.slice(-10), openTasks:openTasks.slice(-10), highPriorityTasks:highPriority.slice(-10), nextAction:nextAction(), learning:intelligenceSnapshot(), principle:"Understand context, choose the next useful operation, execute only through verified tools, then learn from the result." };
+}
+
 function updatePersonalAlgorithm(message, intent) {
   const text = String(message || "").trim();
   if (!text) return intelligence;
@@ -284,14 +292,14 @@ async function generateAIResponse(message, extraContext = "", useWeb = false) {
   const system = ["You are Amvexa, a personal AI assistant for one user.","You are not a command parser. Hold a natural, continuous conversation.","Do not bring up an older task, topic, question, or plan unless the current message clearly refers to it.","If the user asks for normal/casual conversation, reply naturally and briefly; do not turn it into task planning.","You are Amvexa, the user's own personal assistant software. Never claim that Amazon, Google, OpenAI, or another company created you unless the user explicitly asks about the underlying model/provider.","Understand Hindi, Hinglish and English and normally reply in natural Hindi/Hinglish unless the user asks otherwise.","Be concise but thoughtful. Do not repeat generic greetings or ask what you can do after every message.","Use recent conversation context and relevant remembered facts.","Never claim an action happened unless the execution result confirms it.","When current information is needed, use supplied web research rather than inventing facts.","You may suggest the next useful step when appropriate, without being pushy.","Operate with a JARVIS/FRIDAY-style loop: understand context, plan, execute, monitor, verify and learn. Be proactive when the next action is clear, but do not fabricate actions.","Use the Personal Algorithm Intelligence supplied below to adapt to the user. Treat it as learned signals, not absolute truth.","Low-risk internal planning can proceed without repeated confirmation; consequential external actions require confirmation.",extraContext].filter(Boolean).join("\n");
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 20000);
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method:"POST", body:JSON.stringify({ system_instruction:{parts:[{text:system}]}, contents:[...conversationContext(),{role:"user",parts:[{text:message}]}], ...(useWeb?{tools:[{google_search:{}}]}:{}), generationConfig:{temperature:0.7,maxOutputTokens:700} }), headers:{"Content-Type":"application/json","x-goog-api-key":apiKey}, signal:controller.signal });
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method:"POST", body:JSON.stringify({ system_instruction:{parts:[{text:system}]}, contents:conversationContext(), ...(useWeb?{tools:[{google_search:{}}]}:{}), generationConfig:{temperature:0.7,maxOutputTokens:700} }), headers:{"Content-Type":"application/json","x-goog-api-key":apiKey}, signal:controller.signal });
     const data = await response.json().catch(()=>({})); if(!response.ok){ const providerError=data?.error?.message||"AI provider request failed"; console.error("Gemini error:",response.status,providerError); return {success:false,error:providerError}; }
     const text=data?.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("").trim(); if(!text){ console.error("Gemini returned no text:",JSON.stringify(data).slice(0,2000)); return {success:false,error:"AI provider returned no response"}; }
     return {success:true,text};
   } catch(error){ return {success:false,error:error?.name==="AbortError"?"AI provider timed out":"AI provider unavailable"}; } finally{clearTimeout(timeout);}
 }
 
-async function buildAssistantResponse(message, toolResult, useWeb=false) { const memoryContext=memorySearch(message,5).map(m=>m.content).join("\n"); const webContext=toolResult?.success&&toolResult?.results?.length?toolResult.results.slice(0,6).map(r=>`${r.title}\n${r.content}\n${r.url}`).join("\n\n"):""; const extra=[personalAlgorithmContext(),memoryContext?`Relevant remembered facts:\n${memoryContext}`:"",webContext?`Fresh web research:\n${webContext}`:""].filter(Boolean).join("\n\n"); return generateAIResponse(message,extra,useWeb); }
+async function buildAssistantResponse(message, toolResult, useWeb=false) { const memoryContext=memorySearch(message,5).map(m=>m.content).join("\n"); const webContext=toolResult?.success&&toolResult?.results?.length?toolResult.results.slice(0,6).map(r=>`${r.title}\n${r.content}\n${r.url}`).join("\n\n"):""; const state=jarvisContext(); const extra=[personalAlgorithmContext(),`JARVIS/FRIDAY operating state:\n${JSON.stringify(state)}`,memoryContext?`Relevant remembered facts:\n${memoryContext}`:"",webContext?`Fresh web research:\n${webContext}`:""].filter(Boolean).join("\n\n"); return generateAIResponse(message,extra,useWeb); }
 
 async function webSearch(query) {
   const apiKey=process.env.TAVILY_API_KEY; if(!apiKey)return {success:false,error:"Web intelligence is not configured",results:[]};
@@ -340,6 +348,7 @@ app.get("/api/tasks", (req,res)=>res.json({success:true,tasks}));
 app.get("/api/context", (req,res)=>res.json({success:true,context:contextSummary()}));
 app.get("/api/conversation", (req,res)=>res.json({success:true,conversation:conversation.slice(-MAX.conversation)}));
 app.get("/api/intelligence", (req,res)=>res.json({success:true,intelligence:intelligenceSnapshot()}));
+app.get("/api/jarvis", (req,res)=>res.json({success:true,state:jarvisContext()}));
 app.get("/api/proactive", (req,res)=>{
   const next=nextAction();
   const open=tasks.filter(t=>t.status!=="done");
@@ -352,12 +361,14 @@ app.post("/api/chat", async (req,res)=>{
   const message=String(req.body?.message||"").trim();
   if(!message)return res.status(400).json({success:false,error:"Message is required"});
   addConversation("user",message);
+  const detectedIntent = detectIntent(message);
   const plan=planTool(message);
-  updatePersonalAlgorithm(message, plan.tool === "create_task" ? "planning" : plan.tool === "get_tasks" ? "tasks" : plan.tool === "complete_task" ? "task_complete" : plan.tool || detectIntent(message));
+  updatePersonalAlgorithm(message, plan.tool === "create_task" ? "planning" : plan.tool === "get_tasks" ? "tasks" : plan.tool === "complete_task" ? "task_complete" : plan.tool || detectedIntent);
   let toolResult=null; let verification=null; let responseText="";
   try{
-    if(detectIntent(message)==="assistant_mode"){
-      responseText=assistantModeFallback();
+    if(detectedIntent==="assistant_mode"){
+      const ai=await buildAssistantResponse(message,null,false);
+      responseText=ai.success?ai.text:assistantModeFallback();
     }
     if(!responseText && !plan.tool && /^(mujhse|mujh se)\s+(normal|casual)\s+baat\s*(karo|karna|kijiye)?[.!?]*$/i.test(message)){responseText="Bilkul 😊 Aap aaram se baat kijiye. Main yahin hoon.";}
     if(!responseText && plan.tool){toolResult=await executeTool(plan.tool,plan.args);verification=verifyTool(plan.tool,toolResult);}
