@@ -838,7 +838,8 @@
       } catch (_) {}
     }
 
-    async function refreshJarvisDecision() {\n      try {\n        const response = await fetch(`${API_URL}/api/jarvis/decision`);\n        if (!response.ok) return;\n        const data = await response.json();\n        window.amvexaJarvisDecision = data.decision || null;\n      } catch (_) {}\n    }\n\n    async function refreshMemoryStatus() {
+    async function refreshJarvisDecision() {\n      try {\n        const response = await fetch(`${API_URL}/api/jarvis/decision`);\n        if (!response.ok) return;\n        const data = await response.json();\n        window.amvexaJarvisDecision = data.decision || null;
+        renderJarvisDecision(window.amvexaJarvisDecision);\n      } catch (_) {}\n    }\n\n    async function refreshMemoryStatus() {
       const memoryStatus = document.getElementById("memoryStatus");
       if (!memoryStatus) return;
 
@@ -1046,6 +1047,20 @@
       return String(value ?? "").replace(/[&<>"']/g, char => ({
         "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
       }[char]));
+    }
+
+    function renderJarvisDecision(decision) {
+      const existing = document.getElementById("jarvisDecision");
+      if (existing) existing.remove();
+      if (!decision || !decision.target) return;
+      const panel = document.createElement("section");
+      panel.id = "jarvisDecision";
+      panel.style.cssText = "margin-top:14px;padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:var(--panel-soft);";
+      const label = decision.operation === "work_on_task" ? "JARVIS · NEXT ACTION" : "JARVIS · PLAN";
+      panel.innerHTML = `<div style="font-size:11px;color:var(--muted);letter-spacing:.08em;">${label}</div>
+        <div style="font-size:14px;line-height:1.5;margin-top:5px;">${escapeHtml(decision.target)}</div>`;
+      const main = document.querySelector("main");
+      if (main) main.prepend(panel);
     }
 
     function showToast(message) {
