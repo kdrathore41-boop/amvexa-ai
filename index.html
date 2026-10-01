@@ -847,7 +847,10 @@
         if (data.situation) window.amvexaJarvisSituation = data.situation;
         if (data.learning) window.amvexaJarvisLearning = data.learning;
         if (data.checkedAt) window.amvexaJarvisDecisionCheckedAt = data.checkedAt;
-        renderJarvisDecision(window.amvexaJarvisDecision);\n      } catch (_) {}\n    }\n\n    async function refreshMemoryStatus() {
+        renderJarvisDecision(window.amvexaJarvisDecision);
+        if (data.decision?.operation === "work_on_task" && data.decision.overdue) {
+          showToast("JARVIS: यह task overdue है");
+        }\n      } catch (_) {}\n    }\n\n    async function refreshMemoryStatus() {
       const memoryStatus = document.getElementById("memoryStatus");
       if (!memoryStatus) return;
 
