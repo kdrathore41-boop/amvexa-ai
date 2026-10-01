@@ -353,6 +353,9 @@ function buildDecision(next){
     taskId:null,
     goalId:null,
     reason:"no_active_work",
+    priority:"normal",
+    dueAt:null,
+    overdue:false,
     safeToExecute:true,
     requiresUserAction:false
   };
@@ -364,7 +367,16 @@ function buildDecision(next){
   }
   return base;
 }
-function localBrain(message, reason = "") {
+
+function decisionNeedsUserAction(decision){
+  return Boolean(decision && decision.requiresUserAction);
+}
+
+function decisionSummary(decision){
+  if(!decision) return "No decision available.";
+  const urgency=decision.overdue?"overdue":decision.priority==="high"?"high priority":decision.dueAt?"deadline set":"normal";
+  return decision.operation+" · "+urgency+" · "+decision.target;
+}function localBrain(message, reason = "") {
   const intent = detectIntent(message);
   const next = nextAction();
   if (intent === "greeting") return "नमस्ते जी। Amvexa यहाँ है।";
@@ -434,6 +446,28 @@ app.get("/api/proactive",(req,res)=>{
   const checkedAt=new Date().toISOString();
   res.json({success:true,shouldSpeak,message:signal?.message||"",signal,nextAction:next,decision,checkedAt,context:{openTasks:open.length,highPriorityTasks:high.length,activeGoals:activeGoals.length,dueSoonTasks:dueSoonTasks.length,activeGoal:activeGoal?{id:activeGoal.id,title:activeGoal.title||activeGoal.name||"active goal",taskCount:goalTaskCount,openTaskCount:goalOpenTaskCount}:null,checkedAt}});
 });
+app.post("/api/jarvis/execute", async (req,res)=>{
+  const state=jarvisContext();
+  const decision=buildDecision(state.nextAction);
+  if(!decisionNeedsUserAction(decision)){
+    return res.json({success:true,executed:false,reason:"No user-controlled task execution required",decision,state,checkedAt:new Date().toISOString()});
+  }
+  const task=tasks.find(t=>t.id===decision.taskId);
+  if(!task || task.status==="done"){
+    return res.status(409).json({success:false,executed:false,error:"Task is no longer open",decision});
+  }
+  return res.json({
+    success:true,
+    executed:false,
+    requiresUserAction:true,
+    action:"task_ready",
+    decision,
+    task:{id:task.id,title:task.title,priority:task.priority,dueAt:task.dueAt||null,status:task.status},
+    message:"Task is ready. User action is required before consequential work.",
+    checkedAt:new Date().toISOString()
+  });
+});
+
 app.get("/api/jarvis/decision",(req,res)=>{
   const state=jarvisContext();
   const next=state.nextAction;
