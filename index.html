@@ -642,6 +642,8 @@
     let voiceCommand = false;
     let handsFree = false;
     let proactiveTimer = null;
+    let voiceRestartTimer = null;
+    let voiceRetryCount = 0;
 
     function setupVoice() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -656,6 +658,8 @@
       recognition.continuous = false;
 
       recognition.onstart = () => {
+        voiceRetryCount = 0;
+        if (voiceRestartTimer) { clearTimeout(voiceRestartTimer); voiceRestartTimer = null; }
         listening = true;
         voiceButton.textContent = "●";
         statusText.textContent = "Listening...";
@@ -678,11 +682,19 @@
         const messages = {
           "not-allowed": "Microphone permission is required.",
           "service-not-allowed": "Voice service is blocked on this device.",
-          "no-speech": "No speech detected. Please try again.",
-          "audio-capture": "Microphone could not be accessed.",
-          "network": "Voice recognition network error. Please try again."
+          "no-speech": "No speech detected. Listening will retry.",
+          "audio-capture": "Microphone could not be accessed. Listening will retry.",
+          "network": "Voice recognition network error. Listening will retry."
         };
-        showToast(messages[event.error] || "Voice input failed. Please try again.");
+        showToast(messages[event.error] || "Voice input failed. Listening will retry.");
+        if (handsFree && !["not-allowed","service-not-allowed"].includes(event.error)) {
+          voiceRetryCount = Math.min(voiceRetryCount + 1, 5);
+          const delay = Math.min(5000, 700 * Math.pow(2, voiceRetryCount - 1));
+          voiceRestartTimer = setTimeout(() => {
+            if (!handsFree || listening || sendButton.disabled) return;
+            try { recognition.start(); } catch (_) {}
+          }, delay);
+        }
       };
 
       recognition.onend = () => {
@@ -690,7 +702,8 @@
         voiceButton.textContent = "◉";
         if (statusText.textContent === "Listening...") statusText.textContent = "Online";
         if (handsFree && !sendButton.disabled) {
-          setTimeout(() => {
+          if (voiceRestartTimer) clearTimeout(voiceRestartTimer);
+          voiceRestartTimer = setTimeout(() => {
             if (!handsFree || listening || sendButton.disabled) return;
             try { recognition.start(); } catch (_) {}
           }, 700);
