@@ -215,7 +215,7 @@ function taskFromMessage(message) {
 }
 
 function nextAction() { const open=tasks.filter(t=>t.status!=="done"); const now=Date.now(); const due=open.filter(t=>t.dueAt).sort((a,b)=>new Date(a.dueAt)-new Date(b.dueAt)); const overdue=due.find(t=>new Date(t.dueAt).getTime()<=now); const high=open.find(t=>t.priority==="high"); const pick=overdue||high||due[0]||open[0]; if(pick)return {type:"task",title:pick.title,taskId:pick.id,priority:pick.priority,dueAt:pick.dueAt||null,overdue:Boolean(pick.dueAt&&new Date(pick.dueAt).getTime()<=now)}; return {type:"setup",title:"Create your first task or goal"}; }
-function dailyPlan() { return { generatedAt: new Date().toISOString(), tasks: tasks.filter(t => t.status !== "done").sort((a,b) => ({high:0,normal:1,low:2}[a.priority] ?? 1) - ({high:0,normal:1,low:2}[b.priority] ?? 1)).slice(0,5), nextAction: nextAction() }; }
+function dailyPlan() { const now=Date.now(); const items=tasks.filter(t=>t.status!=="done").sort((a,b)=>{const pa={high:0,normal:1,low:2}[a.priority]??1,pb={high:0,normal:1,low:2}[b.priority]??1; const da=a.dueAt?new Date(a.dueAt).getTime():Infinity,db=b.dueAt?new Date(b.dueAt).getTime():Infinity; return (da-now)-(db-now)||pa-pb;}).slice(0,5); return {generatedAt:new Date().toISOString(),tasks:items,nextAction:nextAction()}; }
 function contextSummary() { return { memoryCount: memory.length, taskCount: tasks.length, openTasks: tasks.filter(t => t.status !== "done").length, goalCount: goals.length, knowledgeCount: knowledge.length }; }
 
 // JARVIS/FRIDAY operating state: context -> priority -> next action -> execution -> verification -> learning.
