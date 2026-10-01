@@ -655,7 +655,7 @@
       recognition = new SpeechRecognition();
       recognition.lang = "hi-IN";
       recognition.interimResults = false;
-      recognition.continuous = false;
+      recognition.continuous = true;
 
       recognition.onstart = () => {
         voiceRetryCount = 0;
@@ -667,7 +667,8 @@
       };
 
       recognition.onresult = event => {
-        const transcript = event.results[0][0].transcript.trim();
+        const result = event.results[event.results.length - 1];
+        const transcript = result?.[0]?.transcript?.trim() || "";
         if (transcript) {
           input.value = transcript;
           voiceCommand = true;
