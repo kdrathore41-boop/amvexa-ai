@@ -371,6 +371,11 @@ app.get("/api/proactive",(req,res)=>{
   const high=open.filter(t=>t.priority==="high");
   const activeGoals=goals.filter(g=>g.status!=="done");
   const next=nextAction();
+  const now=Date.now();
+  const dueSoonTasks=open.filter(t=>t.dueAt).filter(t=>{const ms=new Date(t.dueAt).getTime()-now; return ms>0 && ms<=60*60*1000;});
+  const activeGoal=activeGoals[0]||null;
+  const goalTaskCount=activeGoal?.taskIds?.length||0;
+  const goalOpenTaskCount=activeGoal?.taskIds?.filter(id=>open.some(t=>t.id===id)).length||0;
 
   let signal=null;
   const dueSoon=next && next.dueAt && !next.overdue && (new Date(next.dueAt).getTime()-Date.now()) <= 60*60*1000;
@@ -389,7 +394,7 @@ app.get("/api/proactive",(req,res)=>{
   }
 
   const shouldSpeak=Boolean(signal && (signal.priority==="high" || signal.type==="goal_followup"));
-  res.json({success:true,shouldSpeak,message:signal?.message||"",signal,nextAction:next,context:{openTasks:open.length,highPriorityTasks:high.length,activeGoals:activeGoals.length,checkedAt:new Date().toISOString()}});
+  res.json({success:true,shouldSpeak,message:signal?.message||"",signal,nextAction:next,context:{openTasks:open.length,highPriorityTasks:high.length,activeGoals:activeGoals.length,dueSoonTasks:dueSoonTasks.length,activeGoal:activeGoal?{id:activeGoal.id,title:activeGoal.title||activeGoal.name||"active goal",taskCount:goalTaskCount,openTaskCount:goalOpenTaskCount}:null,checkedAt:new Date().toISOString()}});
 });
 app.post("/api/jarvis/step", async (req,res)=>{
   const state=jarvisContext();
