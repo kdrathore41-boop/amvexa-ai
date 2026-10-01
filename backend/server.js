@@ -151,7 +151,11 @@ function normalizeTaskReference(message) {
 }
 
 function completeTask(reference) {
-  const task = findTask(reference);
+  let task = findTask(reference);
+  if (!task && /^(?:इस|उस|यह|वह)\s+(?:काम|टास्क|कार्य)/i.test(String(reference || ""))) {
+    const openTasks = tasks.filter(t => t.status !== "done");
+    if (openTasks.length === 1) task = openTasks[0];
+  }
   if (!task) return { success: false, error: "Task not found" };
   task.status = "done"; task.completedAt = new Date().toISOString(); writeJson(FILES.tasks, tasks); syncGoals(); return { success: true, task };
 }
@@ -173,9 +177,9 @@ function detectIntent(message) {
   // Explicit assistant-mode requests take priority over every other intent.\n  // Recall questions must be checked before memory-save phrases so
   // "Mera naam kya hai?" is never treated as a request to save "kya".
   if (/\b(what do you remember|what do you know about me|what is my name|what's my name|who am i|recall|yaad hai|mere baare mein|mere baare me)\b/.test(text) || /^\s*(mera naam|my name|मेरा नाम)\s+(kya|what|क्या|क्या है)\b/i.test(text)) return "recall";
-  if (/\b(remember|save|store|note|yaad rakh(?:o|na)?)\b/.test(text) || /\bmera naam\s+.+?(?:hai|yaad rakh)/i.test(text) || /\b(my name is)\b/i.test(text) || /मेरा नाम\s+.+?(?:है|याद रख|याद रखना|याद रखो)/i.test(text) || /याद\s+रख(?:ो|ना|िए)?/i.test(text)) return "memory";
-  if (/\b(complete|finish|mark)\b.*\b(task|todo)\b/.test(text) || /\b(task|todo)\b\s+.+\b(done|complete|finished)\b/.test(text) || /\b(done|complete|finished)\b\s+(?:the\s+)?(?:task|todo)\b/.test(text)) return "task_complete";
-  if (/\b(show|list|my|mere)\b.*\b(tasks?|todos?)\b/.test(text) || /(mere|aaj|aj|today|jaruri|zaroori|important).*(kaam|task|todo)/.test(text) || /(kaam|tasks?|todos?).*(batao|dikhao|dikhaiye|bataiye|show|list)/.test(text)) return "tasks";
+  if (/\b(remember|save|store|note|yaad rakh(?:o|na)?)\b/.test(text) || /\bmera naam\s+.+?(?:hai|yaad rakh)/i.test(text) || /\b(my name is)\b/i.test(text) || /मेरा नाम\s+.+?(?:है|याद रख|याद रखना|याद रखो)(?=\s|[।.!?]|$)/i.test(text) || /याद\s+रख(?:ो|ना|िए)?/i.test(text)) return "memory";
+  if (/\b(complete|finish|mark)\b.*\b(task|todo)\b/.test(text) || /\b(task|todo)\b\s+.+\b(done|complete|finished)\b/.test(text) || /\b(done|complete|finished)\b\s+(?:the\s+)?(?:task|todo)\b/.test(text) || /(?:इस|उस|यह|वह)\s+(?:काम|टास्क|कार्य)\s+(?:को\s+)?(?:पूरा|पूर्ण|done|complete)\s*(?:करो|करें|मानो|मान लें|हुआ|हुई)?/i.test(text) || /(?:काम|टास्क|कार्य)\s+(?:पूरा|पूर्ण)\s*(?:करो|करें|मानो|मान लें|हुआ|हुई)?/i.test(text)) return "task_complete";
+  if (/\b(show|list|my|mere)\b.*\b(tasks?|todos?)\b/.test(text) || /(mere|aaj|aj|today|jaruri|zaroori|important).*(kaam|task|todo)/.test(text) || /(kaam|tasks?|todos?).*(batao|dikhao|dikhaiye|bataiye|show|list)/.test(text) || /(?:मुझे|मेरे|मेरा|आज|अभी|अपने)\s*(?:का|के|की)?\s*(?:सारे\s*)?(?:काम|टास्क|टूडू|कार्य)\s*(?:याद\s*दिलाओ|बता(?:ओ|इए)|दिखा(?:ओ|इए)|बताइए|दिखाइए)/i.test(text) || /(?:आज|अभी)\s*के?\s*(?:काम|टास्क|कार्य)/i.test(text)) return "tasks";
   if (/\b(?:ek\s+)?(?:task|tast|todo)\s+(?:add|create|bana)\s+(?:karo|karna|do)\b/i.test(text) || /\b(?:add|create|creat|make|set|new)\s+(?:a\s+)?(?:task|tast|todo)\b/i.test(text) || /^\s*(?:kal|tomorrow|aaj|today)\b.+\b(?:karna|karne|complete|finish|niptana|niptane)\b/i.test(text)) return "planning";
   if (/\b(play|listen|bajao|music|song|songs|gaana|gana|romantic|playlist|youtube)\b/.test(text)) return "music";
   if (/\b(research|search|latest|investigate|find out)\b/.test(text)) return "research";
@@ -187,7 +191,7 @@ function detectIntent(message) {
 }
 
 function extractMemory(message) {
-  const identity = String(message || "").match(/^\s*(?:mera naam|my name|मेरा नाम)\s+(.+?)(?:\s+(?:hai|is|h|है)\b|\s+(?:yaad rakh|yaad rakho|yaad rakhna|याद रख|याद रखना|याद रखो)\b|\s*[।.!?]|$)/i);
+  const identity = String(message || "").match(/^\s*(?:mera naam|my name|मेरा नाम)\s+(.+?)(?:\s+(?:hai|is|h|है)(?=\s|[।.!?]|$)|\s+(?:yaad rakh|yaad rakho|yaad rakhna|याद रख|याद रखना|याद रखो)(?=\s|[।.!?]|$)|\s*[।.!?]|$)/i);
   if (identity) return "User ka naam " + identity[1].trim();
   return message.replace(/^\s*(remember|save|store|note|yaad rakh(?:o|na)?)\s*(this|that|ye|yah|ki)?\s*[:,-]?\s*/i, "").trim();
 }
