@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const webpush = require("web-push");
 const fs = require("fs");
 const path = require("path");
 
@@ -36,6 +37,56 @@ app.disable("x-powered-by");
 
 const buckets = new Map();
 
+// Background Web Push support. VAPID keys must be supplied as Render environment variables.
+const pushSubscriptions = new Map();
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:amvexa@example.com";
+const PUSH_READY = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
+
+if (PUSH_READY) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+} else {
+  console.warn("Web Push disabled: VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY are not configured.");
+}
+
+function pushPayload(task) {
+  return JSON.stringify({
+    title: "Amvexa reminder",
+    body: task.title,
+    taskId: task.id,
+    dueAt: task.dueAt || null,
+    priority: task.priority || "normal"
+  });
+}
+
+async function sendDueTaskPushes() {
+  if (!PUSH_READY || !pushSubscriptions.size) return;
+  const now = Date.now();
+  for (const task of tasks) {
+    if (task.status === "done" || !task.dueAt || task.pushNotifiedAt) continue;
+    const due = Date.parse(task.dueAt);
+    if (!Number.isFinite(due) || due > now) continue;
+    for (const [key, subscription] of pushSubscriptions) {
+      try {
+        await webpush.sendNotification(subscription, pushPayload(task));
+      } catch (error) {
+        if (error?.statusCode === 404 || error?.statusCode === 410) {
+          pushSubscriptions.delete(key);
+        } else {
+          console.error("Web Push error:", error?.message || error);
+        }
+      }
+    }
+    task.pushNotifiedAt = new Date().toISOString();
+    writeJson(FILES.tasks, tasks);
+  }
+}
+
+if (PUSH_READY) {
+  setInterval(() => { sendDueTaskPushes().catch(error => console.error("Push scheduler error:", error?.message || error)); }, 30000);
+}
+
 app.use((req, res, next) => {
   if (!req.path.startsWith("/api/")) return next();
 
@@ -54,6 +105,26 @@ app.use((req, res, next) => {
   active.push(now);
   buckets.set(key, active);
   next();
+});
+
+app.get("/api/push/config", (req, res) => {
+  res.json({success: true, enabled: PUSH_READY, publicKey: PUSH_READY ? VAPID_PUBLIC_KEY : null});
+});
+
+app.post("/api/push/subscribe", (req, res) => {
+  if (!PUSH_READY) return res.status(503).json({success:false, error:"Web Push is not configured"});
+  const subscription = req.body?.subscription;
+  if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+    return res.status(400).json({success:false, error:"Invalid push subscription"});
+  }
+  pushSubscriptions.set(subscription.endpoint, subscription);
+  res.json({success:true});
+});
+
+app.delete("/api/push/subscribe", (req, res) => {
+  const endpoint = req.body?.endpoint;
+  if (endpoint) pushSubscriptions.delete(endpoint);
+  res.json({success:true});
 });
 
 app.use(express.static(ROOT));
