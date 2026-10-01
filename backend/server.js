@@ -404,7 +404,8 @@ app.post("/api/chat", async (req,res)=>{
     else {const ai=await buildAssistantResponse(message,null,false);responseText=ai.success?ai.text:localBrain(message,ai.error);}
     }  }catch(error){responseText=localBrain(message,error?.message||"Unknown error");}
   addConversation("assistant",responseText);
-  return res.json({success:true,response:responseText,tool:plan.tool||null,verification,data:{understanding:{intent:plan.tool==="create_task"?"planning":plan.tool==="complete_task"?"task_complete":plan.tool==="get_tasks"?"tasks":detectIntent(message)},execution:{tool:plan.tool||null,action:toolResult?.action||null,verified:Boolean(verification?.verified),verification:verification||null}}});
+  const proactive=jarvisContext();
+  return res.json({success:true,response:responseText,tool:plan.tool||null,verification,data:{understanding:{intent:plan.tool==="create_task"?"planning":plan.tool==="complete_task"?"task_complete":plan.tool==="get_tasks"?"tasks":detectedIntent},execution:{tool:plan.tool||null,action:toolResult?.action||null,verified:Boolean(verification?.verified),verification:verification||null},jarvis:{nextAction:proactive.nextAction,context:proactive.context,highPriorityTasks:proactive.highPriorityTasks}}});
 });
 
 app.listen(PORT,()=>console.log(`Amvexa AI ${VERSION} ${RELEASE} listening on ${PORT}`));
