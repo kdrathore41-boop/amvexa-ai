@@ -206,11 +206,32 @@ function extractMemory(message) {
 function extractDueAt(message) {
   const text=String(message||"").toLowerCase();
   if (!/\b(aaj|today|kal|tomorrow|parso|day after tomorrow)\b|आज|कल|परसों/.test(text)) return null;
-  const d=new Date();
-  if (/\b(kal|tomorrow|कल)\b/.test(text)) d.setDate(d.getDate()+1);
-  else if (/\b(parso|day after tomorrow|परसों)\b/.test(text)) d.setDate(d.getDate()+2);
-  d.setHours(/\b(raat|night|शाम|evening)\b/.test(text)?19:18,0,0,0);
-  return d.toISOString();
+
+  // Always interpret reminders in India Standard Time, independent of Render's server timezone.
+  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+  const get=p=>parts.find(x=>x.type===p)?.value;
+  let year=Number(get("year")), month=Number(get("month")), day=Number(get("day"));
+
+  const dayShift=/\b(kal|tomorrow)\b|कल/.test(text) ? 1 : /\b(parso|day after tomorrow)\b|परसों/.test(text) ? 2 : 0;
+  const base=new Date(Date.UTC(year,month-1,day));
+  base.setUTCDate(base.getUTCDate()+dayShift);
+  year=base.getUTCFullYear(); month=base.getUTCMonth()+1; day=base.getUTCDate();
+
+  // Prefer an explicit clock time: 7 बजे / 7:30 / 7 pm / 19:00.
+  const timeMatch=text.match(/(?:\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b)|(?:\b(\d{1,2})(?::(\d{2}))?\s*बजे\b)/i);
+  let hour=timeMatch ? Number(timeMatch[1]||timeMatch[4]) : null;
+  const minute=timeMatch ? Number(timeMatch[2]||timeMatch[5]||0) : 0;
+  const meridiem=timeMatch?.[3]?.toLowerCase() || null;
+  const evening=/\b(raat|night|शाम|evening)\b/.test(text);
+  if(hour!==null){
+    if(meridiem==="pm" && hour<12) hour+=12;
+    if(meridiem==="am" && hour===12) hour=0;
+    if(!meridiem && evening && hour<12) hour+=12;
+  }else{
+    hour=evening ? 19 : 18;
+  }
+  hour=Math.max(0,Math.min(23,hour));
+  return new Date(Date.UTC(year,month-1,day,hour,minute)-330*60*1000).toISOString();
 }
 
 function taskFromMessage(message) {
