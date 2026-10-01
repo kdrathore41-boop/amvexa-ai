@@ -733,6 +733,9 @@
 
     function speak(text) {
       if (!speakReplies || !("speechSynthesis" in window)) return;
+      if (handsFree && recognition && listening) {
+        try { recognition.stop(); } catch (_) {}
+      }
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(String(text || ""));
       utterance.lang = "hi-IN";
