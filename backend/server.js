@@ -383,7 +383,7 @@ app.post("/api/jarvis/step", async (req,res)=>{
     return res.json({success:true,action:"none",result:{message:"No safe internal action available"},verification:{verified:true,reason:"Nothing to execute"},nextAction:next});
   }
   updatePersonalAlgorithm("jarvis surfaced next action: "+next.title, "next-step");
-  res.json({success:true,action:"surface_next_action",result:{nextAction:next},verification:{verified:true,reason:"Next action state verified"},nextAction:jarvisContext().nextAction});
+  res.json({success:true,action:"surface_next_action",result:{nextAction:next},verification:{verified:true,reason:"Next action state verified"},nextAction:jarvisContext().nextAction,learning:intelligenceSnapshot()});
 });
 
 
