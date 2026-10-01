@@ -45,6 +45,13 @@
       font: inherit;
     }
 
+    button {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      position: relative;
+      z-index: 1;
+    }
+
     .app {
       min-height: 100vh;
       display: flex;
@@ -1132,6 +1139,10 @@
         toast.classList.remove("show");
       }, 2500);
     }
+
+    // Bind critical controls directly as well as inline handlers so mobile taps always reach Amvexa.
+    document.getElementById("sendButton")?.addEventListener("click", sendMessage);
+    document.getElementById("voiceButton")?.addEventListener("click", toggleVoice);
 
     setupVoice();
 
