@@ -669,9 +669,12 @@
       recognition.onresult = event => {
         const result = event.results[event.results.length - 1];
         const transcript = result?.[0]?.transcript?.trim() || "";
-        if (transcript) {
+        if (transcript && (result?.isFinal ?? true)) {
           input.value = transcript;
           voiceCommand = true;
+          if (handsFree && recognition && listening) {
+            try { recognition.stop(); } catch (_) {}
+          }
           sendMessage();
         }
       };
