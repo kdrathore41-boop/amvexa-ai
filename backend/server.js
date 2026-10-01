@@ -367,8 +367,10 @@ app.get("/api/proactive",(req,res)=>{
   const next=nextAction();
 
   let signal=null;
-  if(high.length){
-    signal={type:"priority",priority:"high",reason:"high_priority_task_pending",message:(next.overdue ? "Deadline nikal chuki hai: " : "Aapka high-priority kaam pending hai: ") + next.title,suggestedAction:{type:"task",taskId:high[0].id,title:high[0].title}};
+  if(next.overdue){
+    signal={type:"deadline",priority:"high",reason:"task_overdue",message:"Deadline nikal chuki hai: " + next.title,suggestedAction:{type:"task",taskId:next.taskId,title:next.title}};
+  }else if(high.length){
+    signal={type:"priority",priority:"high",reason:"high_priority_task_pending",message:"Aapka high-priority kaam pending hai: " + high[0].title,suggestedAction:{type:"task",taskId:high[0].id,title:high[0].title}};
   }else if(open.length){
     signal={type:"next_action",priority:"normal",reason:"next_action_available",message:"Agla useful kaam ready hai: " + next.title,suggestedAction:{type:"task",taskId:next.taskId||null,title:next.title}};
   }else if(activeGoals.length){
