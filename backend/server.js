@@ -18,7 +18,8 @@ const FILES = {
   audit: path.join(__dirname, "audit.json"),
   knowledge: path.join(__dirname, "knowledge.json"),
   conversation: path.join(__dirname, "conversation.json"),
-  intelligence: path.join(__dirname, "intelligence.json")
+  intelligence: path.join(__dirname, "intelligence.json"),
+  pushSubscriptions: path.join(__dirname, "push-subscriptions.json")
 };
 
 const MAX = {
@@ -38,7 +39,7 @@ app.disable("x-powered-by");
 const buckets = new Map();
 
 // Background Web Push support. VAPID keys must be supplied as Render environment variables.
-const pushSubscriptions = new Map();
+const pushSubscriptions = new Map(Object.entries(readJson(FILES.pushSubscriptions, {})));
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:amvexa@example.com";
@@ -73,6 +74,7 @@ async function sendDueTaskPushes() {
       } catch (error) {
         if (error?.statusCode === 404 || error?.statusCode === 410) {
           pushSubscriptions.delete(key);
+          writeJson(FILES.pushSubscriptions, Object.fromEntries(pushSubscriptions));
         } else {
           console.error("Web Push error:", error?.message || error);
         }
@@ -107,6 +109,19 @@ app.use((req, res, next) => {
   next();
 });
 
+app.post("/api/push/run", async (req, res) => {
+  const expected = process.env.PUSH_CRON_SECRET || "";
+  if (!expected || req.get("x-amvexa-cron-secret") !== expected) {
+    return res.status(401).json({success:false, error:"Unauthorized"});
+  }
+  try {
+    await sendDueTaskPushes();
+    res.json({success:true, checkedAt:new Date().toISOString()});
+  } catch (error) {
+    res.status(500).json({success:false, error:"Push run failed"});
+  }
+});
+
 app.get("/api/push/config", (req, res) => {
   res.json({success: true, enabled: PUSH_READY, publicKey: PUSH_READY ? VAPID_PUBLIC_KEY : null});
 });
@@ -118,12 +133,16 @@ app.post("/api/push/subscribe", (req, res) => {
     return res.status(400).json({success:false, error:"Invalid push subscription"});
   }
   pushSubscriptions.set(subscription.endpoint, subscription);
+  writeJson(FILES.pushSubscriptions, Object.fromEntries(pushSubscriptions));
   res.json({success:true});
 });
 
 app.delete("/api/push/subscribe", (req, res) => {
   const endpoint = req.body?.endpoint;
-  if (endpoint) pushSubscriptions.delete(endpoint);
+  if (endpoint) {
+    pushSubscriptions.delete(endpoint);
+    writeJson(FILES.pushSubscriptions, Object.fromEntries(pushSubscriptions));
+  }
   res.json({success:true});
 });
 
