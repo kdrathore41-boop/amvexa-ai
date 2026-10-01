@@ -349,12 +349,24 @@ app.get("/api/context", (req,res)=>res.json({success:true,context:contextSummary
 app.get("/api/conversation", (req,res)=>res.json({success:true,conversation:conversation.slice(-MAX.conversation)}));
 app.get("/api/intelligence", (req,res)=>res.json({success:true,intelligence:intelligenceSnapshot()}));
 app.get("/api/jarvis", (req,res)=>res.json({success:true,state:jarvisContext()}));
-app.get("/api/proactive", (req,res)=>{
-  const next=nextAction();
+app.get("/api/proactive",(req,res)=>{
   const open=tasks.filter(t=>t.status!=="done");
-  const shouldSpeak=Boolean(open.length && next.type==="task" && next.priority==="high");
-  const message=shouldSpeak ? "Aapka high-priority kaam pending hai: " + next.title : "";
-  res.json({success:true,shouldSpeak,message,nextAction:next});
+  const high=open.filter(t=>t.priority==="high");
+  const activeGoals=goals.filter(g=>g.status!=="done");
+  const next=nextAction();
+
+  let signal=null;
+  if(high.length){
+    signal={type:"priority",priority:"high",reason:"high_priority_task_pending",message:"Aapka high-priority kaam pending hai: " + high[0].title,suggestedAction:{type:"task",taskId:high[0].id,title:high[0].title}};
+  }else if(open.length){
+    signal={type:"next_action",priority:"normal",reason:"next_action_available",message:"Agla useful kaam ready hai: " + next.title,suggestedAction:{type:"task",taskId:next.taskId||null,title:next.title}};
+  }else if(activeGoals.length){
+    const goalTitle=activeGoals[0].title||activeGoals[0].name||"active goal";
+    signal={type:"goal_followup",priority:"normal",reason:"active_goal_without_open_task",message:"Aapka goal active hai. Main uska next concrete task set kar sakta hoon: " + goalTitle,suggestedAction:{type:"goal_followup",goalId:activeGoals[0].id||null}};
+  }
+
+  const shouldSpeak=Boolean(signal && (signal.priority==="high" || signal.type==="goal_followup"));
+  res.json({success:true,shouldSpeak,message:signal?.message||"",signal,nextAction:next,context:{openTasks:open.length,highPriorityTasks:high.length,activeGoals:activeGoals.length,checkedAt:new Date().toISOString()}});
 });
 
 app.post("/api/chat", async (req,res)=>{
