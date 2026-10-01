@@ -210,10 +210,11 @@ function contextSummary() { return { memoryCount: memory.length, taskCount: task
 
 // JARVIS/FRIDAY operating state: context -> priority -> next action -> execution -> verification -> learning.
 function jarvisContext() {
+  const now = new Date();
   const openTasks = tasks.filter(t => t.status !== "done");
   const activeGoals = goals.filter(g => g.status !== "done");
   const highPriority = openTasks.filter(t => t.priority === "high");
-  return { mode:"JARVIS/FRIDAY", context:contextSummary(), activeGoals:activeGoals.slice(-10), openTasks:openTasks.slice(-10), highPriorityTasks:highPriority.slice(-10), nextAction:nextAction(), learning:intelligenceSnapshot(), principle:"Understand context, choose the next useful operation, execute only through verified tools, then learn from the result." };
+  return { mode:"JARVIS/FRIDAY", currentTime:{iso:now.toISOString(),local:now.toLocaleString("en-IN",{timeZone:"Asia/Kolkata"})}, context:contextSummary(), activeGoals:activeGoals.slice(-10), openTasks:openTasks.slice(-10), highPriorityTasks:highPriority.slice(-10), nextAction:nextAction(), learning:intelligenceSnapshot(), principle:"Understand context, choose the next useful operation, execute only through verified tools, then learn from the result." };
 }
 
 function updatePersonalAlgorithm(message, intent) {
