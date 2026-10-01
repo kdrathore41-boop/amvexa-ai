@@ -786,9 +786,14 @@
 
         const signal = data.signal || {};
         const key = "proactive|" + (signal.type || "signal") + "|" + (signal.reason || "") + "|" + (signal.suggestedAction?.taskId || "") + "|" + data.message;
-        if (sessionStorage.getItem("amvexa_proactive") === key) return;
+        const now = Date.now();
+        const lastKey = sessionStorage.getItem("amvexa_proactive");
+        const lastAt = Number(sessionStorage.getItem("amvexa_proactive_at") || 0);
+        // Avoid repeating the same spoken signal while the user has not acted on it.
+        if (lastKey === key && now - lastAt < 30 * 60 * 1000) return;
 
         sessionStorage.setItem("amvexa_proactive", key);
+        sessionStorage.setItem("amvexa_proactive_at", String(now));
         addMessage("assistant", data.message);
         speak(data.message);
 
