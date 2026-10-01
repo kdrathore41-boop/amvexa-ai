@@ -1060,9 +1060,16 @@
       panel.style.cssText = "margin-top:14px;padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:var(--panel-soft);";
       const label = decision.operation === "work_on_task" ? "JARVIS · NEXT ACTION" : "JARVIS · PLAN";
       panel.innerHTML = `<div style="font-size:11px;color:var(--muted);letter-spacing:.08em;">${label}</div>
-        <div style="font-size:14px;line-height:1.5;margin-top:5px;">${escapeHtml(decision.target)}</div>`;
+        <div style="font-size:14px;line-height:1.5;margin-top:5px;">${escapeHtml(decision.target)}</div>
+        <div id="jarvisSituation" style="color:var(--muted);font-size:11px;margin-top:6px;"></div>`;
       const main = document.querySelector("main");
       if (main) main.prepend(panel);
+      const situation = window.amvexaJarvisSituation;
+      const sit = panel.querySelector("#jarvisSituation");
+      if (sit && situation) {
+        const goal = situation.activeGoal;
+        sit.textContent = `Open tasks: ${situation.openTasks ?? 0} · High: ${situation.highPriorityTasks ?? 0} · Goal: ${goal ? (goal.progressPercent ?? 0) + "%" : "none"}`;
+      }
     }
 
     function showToast(message) {
