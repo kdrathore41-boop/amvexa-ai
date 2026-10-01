@@ -191,9 +191,10 @@ function detectIntent(message) {
 }
 
 function extractMemory(message) {
-  const identity = String(message || "").match(/^\s*(?:mera naam|my name|मेरा नाम)\s+(.+?)(?:\s+(?:hai|is|h|है)(?=\s|[।.!?]|$)|\s+(?:yaad rakh|yaad rakho|yaad rakhna|याद रख|याद रखना|याद रखो)(?=\s|[।.!?]|$)|\s*[।.!?]|$)/i);
+  const text = String(message || "").trim();
+  const identity = text.match(/^\s*(?:mera naam|my name|मेरा नाम)\s+(.+?)(?:\s+(?:hai|is|h|है)\b|\s+(?:yaad rakh(?:o|na)?|याद रख(?:ो|ना|िए)?)\b|\s*[।.!?]|$)/i);
   if (identity) return "User ka naam " + identity[1].trim();
-  return message.replace(/^\s*(remember|save|store|note|yaad rakh(?:o|na)?)\s*(this|that|ye|yah|ki)?\s*[:,-]?\s*/i, "").trim();
+  return text.replace(/^\s*(remember|save|store|note|yaad rakh(?:o|na)?|याद रख(?:ो|ना|िए)?)\s*(this|that|ye|yah|ki|यह|ये|कि)?\s*[:,-]?\s*/i, "").trim();
 }
 
 function taskFromMessage(message) {
