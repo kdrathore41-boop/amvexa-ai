@@ -230,7 +230,12 @@ function jarvisContext() {
   const openTasks = tasks.filter(t => t.status !== "done");
   const activeGoals = goals.filter(g => g.status !== "done");
   const highPriority = openTasks.filter(t => t.priority === "high");
-  return { mode:"JARVIS/FRIDAY", currentTime:{iso:now.toISOString(),local:now.toLocaleString("en-IN",{timeZone:"Asia/Kolkata"})}, context:contextSummary(), activeGoals:activeGoals.slice(-10), openTasks:openTasks.slice(-10), highPriorityTasks:highPriority.slice(-10), nextAction:nextAction(), learning:intelligenceSnapshot(), principle:"Understand context, choose the next useful operation, execute only through verified tools, then learn from the result." };
+  const dueSoon = openTasks.filter(t => t.dueAt).filter(t => { const ms = new Date(t.dueAt).getTime() - now.getTime(); return ms > 0 && ms <= 60 * 60 * 1000; });
+  const overdue = openTasks.filter(t => t.dueAt && new Date(t.dueAt).getTime() <= now.getTime());
+  const activeGoal = activeGoals[0] || null;
+  const goalTaskIds = Array.isArray(activeGoal?.taskIds) ? activeGoal.taskIds : [];
+  const goalOpenTasks = goalTaskIds.filter(id => openTasks.some(t => t.id === id));
+  return { mode:"JARVIS/FRIDAY", currentTime:{iso:now.toISOString(),local:now.toLocaleString("en-IN",{timeZone:"Asia/Kolkata"})}, situation:{openTasks:openTasks.length,highPriorityTasks:highPriority.length,dueSoonTasks:dueSoon.length,overdueTasks:overdue.length,activeGoal:activeGoal?{id:activeGoal.id,title:activeGoal.title||activeGoal.name||"active goal",openLinkedTasks:goalOpenTasks.length,totalLinkedTasks:goalTaskIds.length}:null}, context:contextSummary(), activeGoals:activeGoals.slice(-10), openTasks:openTasks.slice(-10), highPriorityTasks:highPriority.slice(-10), nextAction:nextAction(), learning:intelligenceSnapshot(), principle:"Understand context, choose the next useful operation, execute only through verified tools, then learn from the result." };
 }
 
 function updatePersonalAlgorithm(message, intent) {
