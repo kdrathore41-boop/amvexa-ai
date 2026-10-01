@@ -426,7 +426,16 @@ app.post("/api/jarvis/step", async (req,res)=>{
       const result=await executeTool("create_task",{title,priority:"high",goalId:goal.id});
       const verification=verifyTool("create_task",result);
       updatePersonalAlgorithm("jarvis step goal to task", "planning");
-      return res.json({success:true,action:"create_task",result,verification,nextAction:jarvisContext().nextAction});
+      const verifiedState = jarvisContext();
+      return res.json({
+        success:true,
+        action:"create_task",
+        result,
+        verification,
+        nextAction:verifiedState.nextAction,
+        situation:verifiedState.situation,
+        learning:verifiedState.learning
+      });
     }
     return res.json({success:true,action:"none",result:{message:"No safe internal action available"},verification:{verified:true,reason:"Nothing to execute"},nextAction:next});
   }
