@@ -1140,10 +1140,6 @@
       }, 2500);
     }
 
-    // Bind critical controls directly as well as inline handlers so mobile taps always reach Amvexa.
-    document.getElementById("sendButton")?.addEventListener("click", sendMessage);
-    document.getElementById("voiceButton")?.addEventListener("click", toggleVoice);
-
     setupVoice();
 
     if ("serviceWorker" in navigator) {
