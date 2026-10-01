@@ -1078,6 +1078,27 @@
         <div id="jarvisSituation" style="color:var(--muted);font-size:11px;margin-top:6px;"></div>`;
       const main = document.querySelector("main");
       if (main) main.prepend(panel);
+      if (decision.operation === "work_on_task" && decision.taskId) {
+        const actionButton = document.createElement("button");
+        actionButton.type = "button";
+        actionButton.textContent = "इस काम पर आगे बढ़ें";
+        actionButton.style.cssText = "margin-top:10px;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--panel);color:inherit;cursor:pointer;";
+        actionButton.onclick = async () => {
+          actionButton.disabled = true;
+          try {
+            const response = await fetch(API_URL + "/api/jarvis/execute", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
+            const data = await response.json();
+            if (data.message) addMessage("assistant", data.message);
+            if (data.success) showToast("JARVIS: task ready");
+          } catch (_) {
+            showToast("JARVIS execution check failed");
+          } finally {
+            actionButton.disabled = false;
+          }
+        };
+        panel.appendChild(actionButton);
+      }
+
       const situation = window.amvexaJarvisSituation;
       const sit = panel.querySelector("#jarvisSituation");
       if (sit && situation) {
