@@ -239,7 +239,7 @@ function updatePersonalAlgorithm(message, intent) {
   const signals = [];
   if (/\b(urgent|important|jaruri|zaroori|jaldi|asap|deadline|target)\b/i.test(lower)) signals.push("priority_sensitive");
   if (/\b(yaad|remember|hamesha|always)\b/i.test(lower)) signals.push("memory_or_continuity");
-  if (/\b(kal|tomorrow|aaj|today|deadline|date|tarikh)\b/i.test(lower)) signals.push("time_sensitive");
+  if (/\b(kal|tomorrow|aaj|today|deadline|date|tarikh|parso|day after tomorrow)\b/i.test(lower)) signals.push("time_sensitive");
   if (/\b(next|agla|aage|continue|next step)\b/i.test(lower)) signals.push("next_step_oriented");
   if (/\b(plan|planning|organize|schedule|routine)\b/i.test(lower)) signals.push("planning_oriented");
   if (/\b(research|search|latest|current|find out)\b/i.test(lower)) signals.push("research_oriented");
