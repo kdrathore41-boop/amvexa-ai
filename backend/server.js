@@ -386,14 +386,15 @@ app.get("/api/proactive",(req,res)=>{
   const goalOpenTaskCount=activeGoal?.taskIds?.filter(id=>open.some(t=>t.id===id)).length||0;
 
   let signal=null;
-  const dueSoon=next && next.dueAt && !next.overdue && (new Date(next.dueAt).getTime()-Date.now()) <= 60*60*1000;
+  const dueSoon=next && next.dueAt && !next.overdue && (()=>{const ms=new Date(next.dueAt).getTime()-Date.now(); return ms>0 && ms<=60*60*1000;})();
   if(dueSoon){
     const dueTime=new Date(next.dueAt).toLocaleTimeString("en-IN",{timeZone:"Asia/Kolkata",hour:"2-digit",minute:"2-digit"});
     signal={type:"deadline_soon",priority:"high",reason:"task_due_soon",message:"Aapka kaam 1 ghante ke andar due hai: " + next.title + " (" + dueTime + ")",suggestedAction:{type:"task",taskId:next.taskId,title:next.title}};
   }else if(next.overdue){
     signal={type:"deadline",priority:"high",reason:"task_overdue",message:"Deadline nikal chuki hai: " + next.title,suggestedAction:{type:"task",taskId:next.taskId,title:next.title}};
   }else if(high.length){
-    signal={type:"priority",priority:"high",reason:"high_priority_task_pending",message:"Aapka high-priority kaam pending hai: " + high[0].title,suggestedAction:{type:"task",taskId:high[0].id,title:high[0].title}};
+    const priorityTask=next?.type==="task" && next.priority==="high" ? next : high[0];
+    signal={type:"priority",priority:"high",reason:"high_priority_task_pending",message:"Aapka high-priority kaam pending hai: " + priorityTask.title,suggestedAction:{type:"task",taskId:priorityTask.taskId||priorityTask.id,title:priorityTask.title}};
   }else if(open.length){
     signal={type:"next_action",priority:"normal",reason:"next_action_available",message:"Agla useful kaam ready hai: " + next.title,suggestedAction:{type:"task",taskId:next.taskId||null,title:next.title}};
   }else if(activeGoals.length){
