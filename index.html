@@ -1069,7 +1069,13 @@
       const sit = panel.querySelector("#jarvisSituation");
       if (sit && situation) {
         const goal = situation.activeGoal;
-        sit.textContent = `Open tasks: ${situation.openTasks ?? 0} · High: ${situation.highPriorityTasks ?? 0} · Goal: ${goal ? (goal.progressPercent ?? 0) + "%" : "none"}`;
+        const checkedAt = window.amvexaJarvisDecisionCheckedAt;
+        let verified = "";
+        if (checkedAt) {
+          const age = Math.max(0, Date.now() - new Date(checkedAt).getTime());
+          verified = age < 60000 ? " · Verified just now" : " · Verified " + Math.round(age / 60000) + "m ago";
+        }
+        sit.textContent = `Open tasks: ${situation.openTasks ?? 0} · High: ${situation.highPriorityTasks ?? 0} · Goal: ${goal ? (goal.progressPercent ?? 0) + "%" : "none"}${verified}`;
       }
     }
 
