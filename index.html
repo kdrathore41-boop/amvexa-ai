@@ -1065,7 +1065,8 @@
       panel.id = "jarvisDecision";
       panel.style.cssText = "margin-top:14px;padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:var(--panel-soft);";
       const label = decision.operation === "work_on_task" ? "JARVIS · NEXT ACTION" : "JARVIS · PLAN";
-      panel.innerHTML = `<div style="font-size:11px;color:var(--muted);letter-spacing:.08em;">${label}</div>
+      const urgency = decision.operation === "work_on_task" && decision.overdue ? " · OVERDUE" : decision.priority === "high" ? " · HIGH" : "";
+      panel.innerHTML = `<div style="font-size:11px;color:var(--muted);letter-spacing:.08em;">${label}${urgency}</div>
         <div style="font-size:14px;line-height:1.5;margin-top:5px;">${escapeHtml(decision.target)}</div>
         <div id="jarvisSituation" style="color:var(--muted);font-size:11px;margin-top:6px;"></div>`;
       const main = document.querySelector("main");
