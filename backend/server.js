@@ -258,7 +258,28 @@ function createGoalAndPlan(title) {
   writeJson(FILES.tasks, tasks);
   writeJson(FILES.goals, goals);
   const first = plannedTasks[0] || null;
-  const execution = first ? executeTaskInternally(first.id) : {success:false,error:"First goal task was not created"};
+  // Execute the exact task object created/reused above; do not re-resolve it by id.
+  // This removes the last possible lookup/state mismatch in goal execution.
+  let execution = {success:false,error:"First goal task was not created"};
+  if (first) {
+    const now = new Date().toISOString();
+    first.status = "in_progress";
+    first.startedAt = first.startedAt || now;
+    first.lastExecutionAt = now;
+    first.executionCount = (first.executionCount || 0) + 1;
+    first.executionStep = "Execution started and task context activated.";
+    writeJson(FILES.tasks, tasks);
+    context.jarvis = {
+      activeOperation: "execute_task",
+      target: first.title,
+      taskId: first.id,
+      startedAt: now,
+      status: "running"
+    };
+    writeJson(FILES.context, context);
+    logAction("execute_task", { reference: first.id, taskId: first.id, source: "goal_execution" }, { success:true, executed:true, task:first });
+    execution = {success:true, executed:true, task:first};
+  }
   return { success:Boolean(execution.success), goal, tasks:goal.taskIds.map(id=>tasks.find(t=>t.id===id)).filter(Boolean), firstTask:execution.task||first, executed:Boolean(execution.executed), verified:Boolean(execution.success) };
 }
 
