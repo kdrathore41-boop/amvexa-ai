@@ -655,8 +655,10 @@
     let voiceRetryCount = 0;
 
     function setupVoice() {
+      const isAndroid=/Android/i.test(navigator.userAgent||"");
       const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-      if(SpeechRecognition){
+      // Android uses the recorder path so the mic works even when browser SpeechRecognition is exposed but non-functional.
+      if(SpeechRecognition && !isAndroid){
         recognition=new SpeechRecognition();
         recognition.lang="hi-IN"; recognition.interimResults=true; recognition.continuous=false; recognition.maxAlternatives=1;
         recognition.onstart=()=>{voiceRetryCount=0;listening=true;voiceButton.textContent="●";statusText.textContent="Listening...";showToast("I'm listening...");};
