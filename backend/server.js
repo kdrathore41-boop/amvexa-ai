@@ -520,7 +520,7 @@ function extractDueAt(message) {
   year=base.getUTCFullYear(); month=base.getUTCMonth()+1; day=base.getUTCDate();
 
   // Prefer an explicit clock time: 7 बजे / 7:30 / 7 pm / 19:00.
-  const timeMatch=text.match(/(?:\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b)|(?:\b(\d{1,2})(?::(\d{2}))?\s*बजे\b)/i);
+  const timeMatch=text.match(/(?:\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b)|(?:\b(\d{1,2})(?::(\d{2}))?\s*बजे)/i);
   let hour=timeMatch ? Number(timeMatch[1]||timeMatch[4]) : null;
   const minute=timeMatch ? Number(timeMatch[2]||timeMatch[5]||0) : 0;
   const meridiem=timeMatch?.[3]?.toLowerCase() || null;
