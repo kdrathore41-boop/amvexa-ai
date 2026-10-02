@@ -520,7 +520,7 @@
 
               aria-label="Voice input"
               title="Voice input"
-              onclick="toggleVoice()"
+              onclick="document.getElementById('statusText').textContent='VOICE CLICK'; if(window.toggleVoice) window.toggleVoice(); else showToast('Voice code did not load');"
             >◉</button>
 
             <button
