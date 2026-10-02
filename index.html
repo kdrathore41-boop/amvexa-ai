@@ -520,6 +520,7 @@
 
               aria-label="Voice input"
               title="Voice input"
+              onclick="toggleVoice()"
             >◉</button>
 
             <button
@@ -656,32 +657,8 @@
     let voiceRetryCount = 0;
 
     function setupVoice() {
-      const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-      // Prefer the browser's native speech recognition when available. This is the fastest and most reliable path on Android Chrome.
-      if(SpeechRecognition){
-        recognition=new SpeechRecognition();
-        recognition.lang="hi-IN"; recognition.interimResults=true; recognition.continuous=false; recognition.maxAlternatives=1;
-        recognition.onstart=()=>{voiceRetryCount=0;listening=true;voiceButton.textContent="●";statusText.textContent="Listening...";showToast("I'm listening...");};
-        recognition.onresult=event=>{
-          let finalTranscript="",interimTranscript="";
-          for(let i=event.resultIndex||0;i<event.results.length;i++){
-            const t=event.results[i]?.[0]?.transcript?.trim()||"";
-            if(event.results[i]?.isFinal)finalTranscript+=(finalTranscript?" ":"")+t;else interimTranscript+=(interimTranscript?" ":"")+t;
-          }
-          const visible=(finalTranscript||interimTranscript).trim(); if(visible)input.value=visible;
-          if(finalTranscript){voiceCommand=true;handsFree=false;try{recognition.stop();}catch(_){}sendMessage();}
-        };
-        recognition.onerror=event=>{listening=false;voiceButton.textContent="◉";statusText.textContent="Online";showToast(({ "not-allowed":"Microphone permission is required.","service-not-allowed":"Voice service is blocked on this device.","no-speech":"No speech detected.","audio-capture":"Microphone could not be accessed.","network":"Voice recognition network error."})[event.error]||"Voice input failed.");handsFree=false;};
-        recognition.onend=()=>{listening=false;voiceButton.textContent="◉";if(statusText.textContent==="Listening...")statusText.textContent="Online";};
-        return;
-      }
-      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){
-        voiceButton.disabled=false;
-        voiceButton.title="Voice input";
-        return;
-      }
-      voiceButton.disabled=false;
-      voiceButton.title="Tap to record, tap again to send";
+      voiceButton.disabled = false;
+      voiceButton.title = "Tap once to start, tap again to stop";
     }
 
     async function startRecorderVoice(){
@@ -1205,25 +1182,6 @@
       window.toastTimer = setTimeout(() => {
         toast.classList.remove("show");
       }, 2500);
-    }
-
-    // One Android-safe click path only. Pointerup + touchend + click caused duplicate toggles.
-    const voiceArea = document.getElementById("voiceButton");
-    if (voiceArea) {
-      voiceArea.style.touchAction = "manipulation";
-      voiceArea.style.pointerEvents = "auto";
-      voiceArea.style.position = "relative";
-      voiceArea.style.zIndex = "20";
-      voiceArea.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        try {
-          window.toggleVoice();
-        } catch (error) {
-          statusText.textContent = "VOICE ERROR";
-          showToast(String(error?.message || error || "Voice input failed"));
-        }
-      });
     }
 
     setupVoice();
