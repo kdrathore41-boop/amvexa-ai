@@ -524,7 +524,7 @@ function extractDueAt(message) {
   let hour=timeMatch ? Number(timeMatch[1]||timeMatch[4]) : null;
   const minute=timeMatch ? Number(timeMatch[2]||timeMatch[5]||0) : 0;
   const meridiem=timeMatch?.[3]?.toLowerCase() || null;
-  const evening=/\b(raat|night|शाम|evening)\b/.test(text);
+  const evening=/(?:\b(?:raat|night|evening)\b|शाम|रात)/.test(text);
   if(hour!==null){
     if(meridiem==="pm" && hour<12) hour+=12;
     if(meridiem==="am" && hour===12) hour=0;
