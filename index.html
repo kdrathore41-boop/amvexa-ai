@@ -709,7 +709,7 @@
           }catch(error){statusText.textContent="Online";showToast(error?.message||"Voice input failed.");}
         };
         mediaRecorder.start(250);listening=true;voiceButton.textContent="●";statusText.textContent="Listening...";showToast("I'm listening... Tap the mic again when you're done.");
-      }catch(error){listening=false;statusText.textContent="Online";showToast("MIC ERROR: "+String(error?.name||"Unknown")+" — "+String(error?.message||"No microphone access"));}
+      }catch(error){listening=false;statusText.textContent="Online";voiceButton.textContent="◉";showToast("MIC ERROR: "+String(error?.name||"Unknown")+" — "+String(error?.message||"No microphone access"));}
     }
 
     function stopRecorderVoice(){if(mediaRecorder&&mediaRecorder.state!=="inactive"){try{mediaRecorder.stop();}catch(_){}}}
