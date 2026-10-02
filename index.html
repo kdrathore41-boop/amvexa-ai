@@ -715,9 +715,13 @@
     function stopRecorderVoice(){if(mediaRecorder&&mediaRecorder.state!=="inactive"){try{mediaRecorder.stop();}catch(_){}}}
     
     function toggleVoice(){
-      // Android native SpeechRecognition can expose an object but fail silently.
-      // Use the microphone recorder path so the button always produces a real microphone action.
-      if(listening){ stopRecorderVoice(); return; }
+      // Reliable Android recorder flow: first tap starts, second tap stops and transcribes.
+      if(listening){
+        statusText.textContent="Stopping...";
+        showToast("Recording stopped. Processing...");
+        stopRecorderVoice();
+        return;
+      }
       startRecorderVoice();
     }
     window.toggleVoice = toggleVoice;
