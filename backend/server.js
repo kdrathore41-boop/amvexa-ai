@@ -478,7 +478,12 @@ function detectIntent(message) {
   // Explicit assistant-mode requests take priority over every other intent.\n  // Recall questions must be checked before memory-save phrases so
   // "Mera naam kya hai?" is never treated as a request to save "kya".
   if (/^\s*(?:मेरा नाम|mera naam|my name)\s+(?:क्या(?:\s+है)?|kya(?:\s+hai)?|what(?:\s+is)?)\s*[?।.!]*$/i.test(text) || /\b(what do you remember|what do you know about me|what is my name|what's my name|who am i|recall|yaad hai|mere baare mein|mere baare me)\b/.test(text)) return "recall";
-  // Time-bound “yaad rakhna” requests are reminders/tasks, not saved memories.
+  // A reminder with a concrete date/time must always win over generic memory language.
+  // Example: “आज शाम 7 बजे ... याद रखना” => reminder, not memory.
+  const hasDateOrDay = /\b(aaj|today|kal|tomorrow|parso|day after tomorrow)\b|आज|कल|परसों/.test(text);
+  const hasClockTime = /(?:\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b)|(?:\b\d{1,2}(?::\d{2})?\s*बजे)/i.test(text);
+  const hasReminderPhrase = /\b(remind|reminder|yaad rakh(?:o|na)?)\b|याद\s*रख(?:ो|ना|िए)?|याद\s*दिलाना|याद\s*दिलाओ/i.test(text);
+  if (hasDateOrDay && hasClockTime && hasReminderPhrase) return "reminder";
   if (/\b(remember|save|store|note|yaad rakh(?:o|na)?)\b/.test(text) || /\bmera naam\s+.+?(?:hai|yaad rakh)/i.test(text) || /\b(my name is)\b/i.test(text) || /मेरा नाम\s+.+?(?:है|याद रख|याद रखना|याद रखो)(?=\s|[।.!?]|$)/i.test(text) || /याद\s+रख(?:ो|ना|िए)?/i.test(text)) return "memory";
   if (/\b(remind|reminder|yaad dilana|yaad dila|याद दिलाना|याद दिलाओ|bhoolna mat|मत भूलना)\b/i.test(text)) return "reminder";
   // Goal execution must run before task-completion detection too: goal titles can contain words like "complete" and "task".
