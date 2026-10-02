@@ -312,7 +312,7 @@ function detectIntent(message) {
   if (/\b(research|search|latest|investigate|find out)\b/.test(text)) return "research";
   if (/\b(plan|schedule|organize)\b/.test(text) || /(aaj|aj|today).*(kaam|work|tasks?|todo|plan)/.test(text) || /(daily|din).*(plan|kaam|work)/.test(text)) return "planning";
   if (/\b(personal ai assistant|personal assistant|jarvis|friday|sirf chat|just chat|next action|agla action|next step)\b/i.test(text) && /\b(goal|assistant|kaam|work|analyze|analyse|analyze karo|kaise kaam|how should you work|next action|next step|sirf chat|just chat)\b/i.test(text)) return "assistant_mode";
-  if (/^\s*(?:khud\s+decide\s+karo|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)\s*[.!?]*$/i.test(text)) return "autonomous_action";
+  if (/^\s*(?:khud\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)\s*[.!?]*$/i.test(text)) return "autonomous_action";
   if (/\b(hello|hi|hey|namaste)\b/.test(text)) return "greeting";
   if (/\b(what|why|how|when|where|who|which|can you|do you|are you|tum|aap|kya|kyun|kaise|kab|kahan|kaun|hai|ho)\b/.test(text)) return "question";
   return "conversation";
@@ -693,7 +693,7 @@ app.post("/api/chat", async (req,res)=>{
   addConversation("user",message);
   const detectedIntent = detectIntent(message);
   // High-priority deterministic commands must bypass the generative AI fallback.
-  const autonomousDirect = /^(?:khud\s+decide\s+karo|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)[.!?।\s]*$/i.test(message);
+  const autonomousDirect = /^(?:khud\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)[.!?।\s]*$/i.test(message);
   // Reminder phrases are deterministic and must work even when the generative AI is unavailable.
   const reminderDirect = /(?:remind|reminder|yaad\s+dila(?:na|o)?|याद\s*दिलाना|याद\s*दिलाओ|bhoolna\s+mat|मत\s*भूलना)/i.test(message);
   const plan=autonomousDirect ? {tool:"jarvis_autonomous_step",args:{}} : reminderDirect ? {tool:"create_task",args:{title:"Reminder: "+message.replace(/(?:remind\s+me\s+to|remind\s+me|reminder|yaad\s+dilana|yaad\s+dila|याद\s*दिलाना|याद\s*दिलाओ|bhoolna\s+mat|मत\s*भूलना)/ig,"").replace(/[\s:,-]+/g," ").trim(),priority:"high",dueAt:extractDueAt(message)}} : planTool(message);
