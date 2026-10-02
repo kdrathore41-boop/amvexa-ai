@@ -876,9 +876,11 @@ app.post("/api/voice/transcribe", async (req,res)=>{
   if(audio.length>11000000)return res.status(413).json({success:false,error:"Audio is too large"});
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),45000);
+  let stage="decode";
   try{
     // Gemini 3.5 Transcribe expects uploaded audio/file URI rather than inline base64.
     const audioBytes=Buffer.from(audio,"base64");
+    stage="upload_setup";
     const startUpload=await fetch("https://generativelanguage.googleapis.com/upload/v1beta/files",{
       method:"POST",
       headers:{
@@ -898,6 +900,7 @@ app.post("/api/voice/transcribe", async (req,res)=>{
     }
     const uploadUrl=startUpload.headers.get("x-goog-upload-url");
     if(!uploadUrl)return res.status(502).json({success:false,error:"Gemini upload URL was not returned"});
+    stage="audio_upload";
     const upload=await fetch(uploadUrl,{
       method:"POST",
       headers:{
@@ -912,6 +915,7 @@ app.post("/api/voice/transcribe", async (req,res)=>{
     if(!upload.ok||!fileData?.file?.uri){
       return res.status(502).json({success:false,error:"Gemini audio upload failed: "+(fileData?.error?.message||upload.status)});
     }
+    stage="transcription";
     const interaction=await fetch("https://generativelanguage.googleapis.com/v1beta/interactions",{
       method:"POST",
       headers:{"Content-Type":"application/json","x-goog-api-key":apiKey},
@@ -932,6 +936,7 @@ app.post("/api/voice/transcribe", async (req,res)=>{
     if(!interaction.ok){
       return res.status(502).json({success:false,error:data?.error?.message||"Gemini transcription failed"});
     }
+    stage="parse_response";
     const transcript=String(
       data?.output_text ||
       data?.outputs?.filter(x=>x?.type==="text").map(x=>x?.text||"").join(" ") ||
@@ -941,7 +946,9 @@ app.post("/api/voice/transcribe", async (req,res)=>{
     if(!transcript)return res.status(502).json({success:false,error:"Gemini returned no transcript"});
     return res.json({success:true,transcript});
   }catch(error){
-    return res.status(502).json({success:false,error:error?.name==="AbortError"?"Voice transcription timed out":(error?.message||"Voice transcription unavailable")});
+    const message=error?.name==="AbortError"?"Voice transcription timed out":(error?.message||"Voice transcription unavailable");
+    console.error("Voice transcription error:", {stage, name:error?.name, message});
+    return res.status(502).json({success:false,error:`Voice transcription failed at ${stage}: ${message}`,stage});
   }finally{clearTimeout(timeout);}
 });
 app.post("/api/chat", async (req,res)=>{
