@@ -262,6 +262,7 @@ function writeJson(file, value) {
     const tmp = `${file}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(value, null, 2));
     fs.renameSync(tmp, file);
+    queuePersistentWrite(file, value);
     return true;
   } catch (e) {
     console.error("Write error:", e.message);
@@ -768,7 +769,7 @@ app.use(async (req,res,next)=>{
   catch (error) { res.status(503).json({success:false,error:"State store unavailable"}); }
 });
 
-app.get("/api/health", (req,res)=>res.json({success:true,service:"amvexa-ai",version:VERSION,release:RELEASE}));
+app.get("/api/health", (req,res)=>res.json({success:true,service:"amvexa-ai",version:VERSION,release:RELEASE,persistence:persistenceStatus}));
 app.get("/api/memory", (req,res)=>res.json({success:true,memory}));
 app.get("/api/tasks", (req,res)=>res.json({success:true,tasks}));
 app.get("/api/context", (req,res)=>res.json({success:true,context:contextSummary()}));
