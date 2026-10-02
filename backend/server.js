@@ -365,6 +365,7 @@ function detectIntent(message) {
   if (/\b(play|listen|bajao|music|song|songs|gaana|gana|romantic|playlist|youtube)\b/.test(text)) return "music";
   if (/\b(research|search|latest|investigate|find out)\b/.test(text)) return "research";
   if (/\b(plan|schedule|organize)\b/.test(text) || /(aaj|aj|today).*(kaam|work|tasks?|todo|plan)/.test(text) || /(daily|din).*(plan|kaam|work)/.test(text)) return "planning";
+  // Goal execution must be classified before assistant_mode because a goal can contain both "goal" and "personal AI assistant".
   if (/\b(goal|goals)\b/i.test(text) && /\b(chhote tasks|small tasks|break|todo|todo list|task|start|shuru|t todo|तोड़|टास्क|शुरू)\b/i.test(text) && /\b(personal ai assistant|personal assistant|amvexa|goal)\b/i.test(text)) return "goal_execution";
   if (/\b(personal ai assistant|personal assistant|jarvis|friday|sirf chat|just chat|next action|agla action|next step)\b/i.test(text) && /\b(goal|assistant|kaam|work|analyze|analyse|analyze karo|kaise kaam|how should you work|next action|next step|sirf chat|just chat)\b/i.test(text)) return "assistant_mode";
   if (/^\s*(?:khud\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)\s*[.!?]*$/i.test(text)) return "autonomous_action";
@@ -745,7 +746,8 @@ app.post("/api/chat", async (req,res)=>{
   updatePersonalAlgorithm(message, plan.tool === "create_task" ? "planning" : plan.tool === "get_tasks" ? "tasks" : plan.tool === "complete_task" ? "task_complete" : plan.tool || detectedIntent);
   let toolResult=null; let verification=null; let responseText="";
   try{
-    if(detectedIntent==="assistant_mode"){
+    // Deterministic goal execution must run before any AI/assistant-mode fallback.
+    if(detectedIntent==="assistant_mode" && plan.tool!=="create_goal_and_plan"){
       const ai=await buildAssistantResponse(message,null,false);
       responseText=ai.success?ai.text:assistantModeFallback();
     }
