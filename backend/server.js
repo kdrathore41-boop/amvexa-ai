@@ -41,7 +41,7 @@ const MAX = {
 };
 
 app.use(cors());
-app.use(express.json({ limit: "64kb" }));
+app.use(express.json({ limit: "12mb" }));
 app.disable("x-powered-by");
 
 const buckets = new Map();
@@ -866,6 +866,33 @@ app.post("/api/jarvis/step", async (req,res)=>{
   res.json({success:true,action:"decision_ready",decision,result:{nextAction:verifiedState.nextAction,situation:verifiedState.situation},verification:{verified:true,reason:"Decision and current situation state verified"},nextAction:verifiedState.nextAction,learning:intelligenceSnapshot()});
 });
 
+
+app.post("/api/voice/transcribe", async (req,res)=>{
+  const apiKey=process.env.GEMINI_API_KEY;
+  if(!apiKey)return res.status(503).json({success:false,error:"AI provider is not configured"});
+  const audio=String(req.body?.audio||"").trim();
+  const mimeType=String(req.body?.mimeType||"audio/webm").split(";")[0];
+  if(!audio)return res.status(400).json({success:false,error:"Audio is required"});
+  if(audio.length>11000000)return res.status(413).json({success:false,error:"Audio is too large"});
+  const model=process.env.GEMINI_MODEL||"gemini-3.8-flash";
+  const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),30000);
+  try{
+    const response=await fetch("https://generativelanguage.googleapis.com/v1beta/interactions",{
+      method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":apiKey},
+      body:JSON.stringify({model,input:[
+        {type:"text",text:"Transcribe the spoken words exactly. The speaker may use Hindi, Hinglish, or English. Return only the transcription text, with no explanation."},
+        {type:"audio",data:audio,mime_type:mimeType}
+      ]}),signal:controller.signal
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)return res.status(502).json({success:false,error:data?.error?.message||"Voice transcription failed"});
+    const transcript=String(data?.output_text||"").trim();
+    if(!transcript)return res.status(502).json({success:false,error:"No speech transcription returned"});
+    return res.json({success:true,transcript});
+  }catch(error){
+    return res.status(502).json({success:false,error:error?.name==="AbortError"?"Voice transcription timed out":"Voice transcription unavailable"});
+  }finally{clearTimeout(timeout);}
+});
 
 app.post("/api/chat", async (req,res)=>{
   const message=String(req.body?.message||"").trim();
