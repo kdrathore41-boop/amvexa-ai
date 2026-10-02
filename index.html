@@ -517,7 +517,7 @@
               id="voiceButton"
               class="tool"
               type="button"
-              onclick="var b=document.getElementById('voiceButton');var s=document.getElementById('statusText');b.textContent='●';if(s)s.textContent='VOICE TAP OK';try{window.toggleVoice();}catch(e){if(s)s.textContent='VOICE ERROR: '+(e&&e.message?e.message:'unknown');}"
+
               aria-label="Voice input"
               title="Voice input"
             >◉</button>
@@ -1201,6 +1201,17 @@
         toast.classList.remove("show");
       }, 2500);
     }
+
+    // One direct listener handles every voice tap, including the stop tap on Android.
+    document.getElementById("voiceButton")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      try { window.toggleVoice(); }
+      catch (error) {
+        statusText.textContent = "VOICE ERROR";
+        showToast(String(error?.message || error || "Voice input failed"));
+      }
+    });
 
     setupVoice();
 
