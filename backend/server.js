@@ -322,6 +322,9 @@ function normalizeTaskReference(message) {
   // "Amvexa test complete हो गया, इसे complete mark करो"
   // Extract the title before the completion phrase so findTask() can match it.
   text = text
+    // Natural completion confirmations may follow the task title directly:
+    // "task title ho gaya, ise complete mark karo"
+    .replace(/\s+(?:ho\s+gaya|ho\s+gayi|ho\s+gye|ह[ोो]\s*गया|ह[ोो]\s*गई|ह[ोो]\s*गए)[,\s]*(?:ise|इसे|isey)\s+(?:complete|done|finish)\s+(?:mark\s+)?(?:karo|kar\s+do|करो|कर\s*दो)\s*$/i, "")
     .replace(/\s+(?:complete|finished?|done)\s+(?:ho\s+gaya|ho\s+gayi|ho\s+gye|ह[ोो]\s*गया|ह[ोो]\s*गई|ह[ोो]\s*गए)[,\s]*(?:ise|इसे|isey)\s+(?:complete|done|finish)\s+(?:mark\s+)?(?:karo|kar\s+do|करो|कर\s*दो)\s*$/i, "")
     .replace(/\s+(?:complete|finished?|done)\s+(?:ho\s+gaya|ho\s+gayi|ho\s+gye|ह[ोो]\s*गया|ह[ोो]\s*गई|ह[ोो]\s*गए)\s*$/i, "")
     .replace(/\s+(?:complete|done|finish(?:ed)?)\s*(?:mark\s+)?(?:karo|kar\s+do|करो|कर\s*दो)\s*$/i, "")
