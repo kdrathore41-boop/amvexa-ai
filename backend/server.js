@@ -918,9 +918,13 @@ app.post("/api/voice/transcribe", async (req,res)=>{
       body:JSON.stringify({
         model:"gemini-3.5-transcribe",
         input:[
-          {type:"text",text:"Transcribe the speech exactly. The speaker may use Hindi, Hinglish, or English. Return only the transcription text."},
           {type:"audio",uri:fileData.file.uri,mime_type:mimeType}
-        ]
+        ],
+        generation_config:{
+          transcription_config:{
+            language_codes:[]
+          }
+        }
       }),
       signal:controller.signal
     });
