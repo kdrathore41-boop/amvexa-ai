@@ -242,16 +242,22 @@ function createGoalAndPlan(title) {
     "Verify the memory, task, reminder and autonomous execution workflow",
     "Plan the remaining integrations and proactive assistant behavior"
   ];
+  // Keep the exact task objects created/reused in this call so the first
+  // goal task cannot be lost between creation and execution.
+  const plannedTasks = [];
   steps.forEach((step,index)=>{
-    const existing = tasks.find(t => t.status !== "done" && t.goalId === goal.id && t.title === step);
-    if (!existing) {
-      const task = createTask(step, index === 0 ? "high" : "normal", null, goal.id);
+    let task = tasks.find(t => t.status !== "done" && t.goalId === goal.id && t.title === step);
+    if (!task) task = createTask(step, index === 0 ? "high" : "normal", null, goal.id);
+    if (task && !task.goalId) task.goalId = goal.id;
+    if (task) {
       goal.taskIds = Array.isArray(goal.taskIds) ? [...new Set([...goal.taskIds, task.id])] : [task.id];
+      plannedTasks.push(task);
     }
   });
   goal.status = "open";
+  writeJson(FILES.tasks, tasks);
   writeJson(FILES.goals, goals);
-  const first = tasks.find(t => t.goalId === goal.id && t.status !== "done" && t.title === steps[0]);
+  const first = plannedTasks[0] || null;
   const execution = first ? executeTaskInternally(first.id) : {success:false,error:"First goal task was not created"};
   return { success:Boolean(execution.success), goal, tasks:goal.taskIds.map(id=>tasks.find(t=>t.id===id)).filter(Boolean), firstTask:execution.task||first, executed:Boolean(execution.executed), verified:Boolean(execution.success) };
 }
