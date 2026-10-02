@@ -517,7 +517,7 @@
               id="voiceButton"
               class="tool"
               type="button"
-              onclick="toggleVoice(); return false;"
+              onclick="document.getElementById('statusText').textContent='Voice button tapped'; try{toggleVoice()}catch(e){try{showToast('Voice input error')}catch(_){}} return false;"
               aria-label="Voice input"
               title="Voice input"
             >◉</button>
