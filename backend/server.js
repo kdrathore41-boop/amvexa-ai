@@ -478,6 +478,7 @@ function detectIntent(message) {
   // Explicit assistant-mode requests take priority over every other intent.\n  // Recall questions must be checked before memory-save phrases so
   // "Mera naam kya hai?" is never treated as a request to save "kya".
   if (/^\s*(?:मेरा नाम|mera naam|my name)\s+(?:क्या(?:\s+है)?|kya(?:\s+hai)?|what(?:\s+is)?)\s*[?।.!]*$/i.test(text) || /\b(what do you remember|what do you know about me|what is my name|what's my name|who am i|recall|yaad hai|mere baare mein|mere baare me)\b/.test(text)) return "recall";
+  // Time-bound “yaad rakhna” requests are reminders/tasks, not saved memories.
   if (/\b(remember|save|store|note|yaad rakh(?:o|na)?)\b/.test(text) || /\bmera naam\s+.+?(?:hai|yaad rakh)/i.test(text) || /\b(my name is)\b/i.test(text) || /मेरा नाम\s+.+?(?:है|याद रख|याद रखना|याद रखो)(?=\s|[।.!?]|$)/i.test(text) || /याद\s+रख(?:ो|ना|िए)?/i.test(text)) return "memory";
   if (/\b(remind|reminder|yaad dilana|yaad dila|याद दिलाना|याद दिलाओ|bhoolna mat|मत भूलना)\b/i.test(text)) return "reminder";
   // Goal execution must run before task-completion detection too: goal titles can contain words like "complete" and "task".
@@ -870,8 +871,9 @@ app.post("/api/chat", async (req,res)=>{
   const autonomousDirect = /^(?:khud\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)[.!?।\s]*$/i.test(message);
   const executeTaskDirect = /^(?:is\s+task\s+ko\s+khud\s+(?:execute|exicute)\s+karo|is\s+task\s+ko\s+(?:execute|exicute)\s+karo|task\s+ko\s+khud\s+(?:execute|exicute)\s+karo|execute\s+this\s+task|execute\s+the\s+task)[.!?।\s]*$/i.test(message);
   // Reminder phrases are deterministic and must work even when the generative AI is unavailable.
-  const reminderDirect = /(?:remind|reminder|yaad\s+dila(?:na|o)?|याद\s*दिलाना|याद\s*दिलाओ|bhoolna\s+mat|मत\s*भूलना)/i.test(message);
-  const plan=executeTaskDirect ? {tool:"execute_task",args:{reference:""}} : autonomousDirect ? {tool:"jarvis_autonomous_step",args:{}} : reminderDirect ? {tool:"create_task",args:{title:"Reminder: "+message.replace(/(?:remind\s+me\s+to|remind\s+me|reminder|yaad\s+dilana|yaad\s+dila|याद\s*दिलाना|याद\s*दिलाओ|bhoolna\s+mat|मत\s*भूलना)/ig,"").replace(/[\s:,-]+/g," ").trim(),priority:"high",dueAt:extractDueAt(message)}} : planTool(message);
+  const reminderDirect = (/(?:remind|reminder|yaad\s+dilana|yaad\s+dila|yaad\s+rakh(?:na|o|iye)?|याद\s*(?:दिलाना|दिलाओ|रखना|रखो|रखिए)|bhoolna\s+mat|मत\s*भूलना)/i.test(message) && /(?:\b(?:aaj|today|kal|tomorrow|parso|day\s+after\s+tomorrow)\b|आज|कल|परसों|\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\d{1,2}(?::\d{2})?\s*बजे)/i.test(message));
+  const reminderTitle = message.replace(/(?:remind\s+me\s+to|remind\s+me|reminder|yaad\s+dilana|yaad\s+dila|yaad\s+rakh(?:na|o|iye)?|याद\s*दिलाना|याद\s*दिलाओ|याद\s*रखना|याद\s*रखो|याद\s*रखिए|bhoolna\s+mat|मत\s*भूलना)/ig,"").replace(/(?:\b(?:aaj|today|kal|tomorrow|parso|day\s+after\s+tomorrow)\b|आज|कल|परसों)\s*(?:की|के|को)?\s*(?:शाम|सुबह|दोपहर|रात|evening|morning|afternoon|night)?\s*(?:\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\d{1,2}(?::\d{2})?\s*बजे)?/ig,"").replace(/[\s:,-]+/g," ").trim();
+  const plan=executeTaskDirect ? {tool:"execute_task",args:{reference:""}} : autonomousDirect ? {tool:"jarvis_autonomous_step",args:{}} : reminderDirect ? {tool:"create_task",args:{title:"Reminder: "+reminderTitle,priority:"high",dueAt:extractDueAt(message)}} : planTool(message);
   updatePersonalAlgorithm(message, plan.tool === "create_task" ? "planning" : plan.tool === "get_tasks" ? "tasks" : plan.tool === "complete_task" ? "task_complete" : plan.tool || detectedIntent);
   let toolResult=null; let verification=null; let responseText="";
   try{
