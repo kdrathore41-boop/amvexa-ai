@@ -715,13 +715,12 @@
     function stopRecorderVoice(){if(mediaRecorder&&mediaRecorder.state!=="inactive"){try{mediaRecorder.stop();}catch(_){}}}
     
     function toggleVoice(){
-      if(recognition){
-        if(listening){handsFree=false;try{recognition.stop();}catch(_){}}
-        else{handsFree=true;try{recognition.start();}catch(_){showToast("Voice input is already starting.");}}
-        return;
-      }
+      // Android native SpeechRecognition can expose an object but fail silently.
+      // Use the microphone recorder path so the button always produces a real microphone action.
+      if(listening){ stopRecorderVoice(); return; }
       startRecorderVoice();
     }
+    window.toggleVoice = toggleVoice;
 
     function speak(text) {
       if (!speakReplies || !("speechSynthesis" in window)) return;
