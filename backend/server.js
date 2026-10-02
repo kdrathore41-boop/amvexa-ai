@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const webpush = require("web-push");
+const { Pool } = require("pg");
 const fs = require("fs");
 const path = require("path");
 
@@ -164,6 +165,95 @@ function readJson(file, fallback) {
       fs.renameSync(file, `${file}.corrupt-${Date.now()}`);
     } catch (_) {}
     return fallback;
+  }
+}
+
+const PERSISTENCE_KEYS = new Map([
+  [FILES.memory, "memory"], [FILES.tasks, "tasks"], [FILES.goals, "goals"],
+  [FILES.context, "context"], [FILES.audit, "audit"], [FILES.knowledge, "knowledge"],
+  [FILES.conversation, "conversation"], [FILES.intelligence, "intelligence"],
+  [FILES.pushSubscriptions, "pushSubscriptions"]
+]);
+
+let persistencePool = null;
+let persistenceStatus = { enabled: false, ready: false, error: null };
+let persistenceReady = Promise.resolve();
+let persistenceWriting = Promise.resolve();
+
+function queuePersistentWrite(file, value) {
+  const key = PERSISTENCE_KEYS.get(file);
+  if (!key || !persistencePool || !persistenceStatus.ready) return;
+  const snapshot = JSON.parse(JSON.stringify(value));
+  persistenceWriting = persistenceWriting.catch(() => {}).then(async () => {
+    try {
+      await persistencePool.query(
+        "INSERT INTO amvexa_state (state_key, state_value, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (state_key) DO UPDATE SET state_value = EXCLUDED.state_value, updated_at = NOW()",
+        [key, JSON.stringify(snapshot)]
+      );
+    } catch (error) {
+      persistenceStatus.error = error?.message || String(error);
+      console.error("Persistent state write failed:", persistenceStatus.error);
+    }
+  });
+}
+
+async function initializePersistence() {
+  const databaseUrl = process.env.DATABASE_URL || "";
+  if (!databaseUrl) {
+    persistenceStatus = { enabled: false, ready: true, error: "DATABASE_URL is not configured; using ephemeral local storage." };
+    console.warn(persistenceStatus.error);
+    return;
+  }
+  try {
+    persistencePool = new Pool({
+      connectionString: databaseUrl,
+      max: 2,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000
+    });
+    await persistencePool.query(
+      "CREATE TABLE IF NOT EXISTS amvexa_state (state_key TEXT PRIMARY KEY, state_value JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
+    );
+    const result = await persistencePool.query("SELECT state_key, state_value FROM amvexa_state");
+    const stored = new Map(result.rows.map(row => [row.state_key, row.state_value]));
+    if (stored.has("memory") && Array.isArray(stored.get("memory"))) memory = stored.get("memory");
+    if (stored.has("tasks") && Array.isArray(stored.get("tasks"))) tasks = stored.get("tasks");
+    if (stored.has("goals") && Array.isArray(stored.get("goals"))) goals = stored.get("goals");
+    if (stored.has("context") && stored.get("context") && typeof stored.get("context") === "object") context = stored.get("context");
+    if (stored.has("audit") && Array.isArray(stored.get("audit"))) audit = stored.get("audit");
+    if (stored.has("knowledge") && Array.isArray(stored.get("knowledge"))) knowledge = stored.get("knowledge");
+    if (stored.has("conversation") && Array.isArray(stored.get("conversation"))) conversation = stored.get("conversation");
+    if (stored.has("intelligence") && stored.get("intelligence") && typeof stored.get("intelligence") === "object") intelligence = stored.get("intelligence");
+    if (stored.has("pushSubscriptions") && stored.get("pushSubscriptions") && typeof stored.get("pushSubscriptions") === "object") {
+      pushSubscriptions.clear();
+      Object.entries(stored.get("pushSubscriptions")).forEach(([key,value]) => pushSubscriptions.set(key,value));
+    }
+    persistenceStatus = { enabled: true, ready: true, error: null };
+    // Seed the database once when it is empty but local bundled state exists.
+    const hasRows = result.rows.length > 0;
+    if (!hasRows) {
+      for (const [file, key] of PERSISTENCE_KEYS) {
+        let value;
+        if (key === "memory") value = memory;
+        else if (key === "tasks") value = tasks;
+        else if (key === "goals") value = goals;
+        else if (key === "context") value = context;
+        else if (key === "audit") value = audit;
+        else if (key === "knowledge") value = knowledge;
+        else if (key === "conversation") value = conversation;
+        else if (key === "intelligence") value = intelligence;
+        else if (key === "pushSubscriptions") value = Object.fromEntries(pushSubscriptions);
+        if (value !== undefined) await persistencePool.query(
+          "INSERT INTO amvexa_state (state_key, state_value, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (state_key) DO NOTHING",
+          [key, JSON.stringify(value)]
+        );
+      }
+    }
+    console.log("Durable state persistence ready.");
+  } catch (error) {
+    persistenceStatus = { enabled: true, ready: true, error: error?.message || String(error) };
+    console.error("Durable persistence initialization failed:", persistenceStatus.error);
   }
 }
 
@@ -672,6 +762,12 @@ function assistantModeFallback() {
   return "Mera operating mode clear hai: context → priority → action → execution → verification → learning.\n\nAbhi next action: ek active goal register karna, taaki main aage usse track karke aapko baar-baar repeat na karwaun.";
 }
 
+app.use(async (req,res,next)=>{
+  if (!req.path.startsWith("/api/")) return next();
+  try { await persistenceReady; next(); }
+  catch (error) { res.status(503).json({success:false,error:"State store unavailable"}); }
+});
+
 app.get("/api/health", (req,res)=>res.json({success:true,service:"amvexa-ai",version:VERSION,release:RELEASE}));
 app.get("/api/memory", (req,res)=>res.json({success:true,memory}));
 app.get("/api/tasks", (req,res)=>res.json({success:true,tasks}));
@@ -810,4 +906,6 @@ app.post("/api/chat", async (req,res)=>{
   return res.json({success:true,response:responseText,tool:plan.tool||null,verification,data:{understanding:{intent:plan.tool==="create_task"?"planning":plan.tool==="complete_task"?"task_complete":plan.tool==="get_tasks"?"tasks":detectedIntent},execution:{tool:plan.tool||null,action:toolResult?.action||null,verified:Boolean(verification?.verified),verification:verification||null},jarvis:{nextAction:proactive.nextAction,context:proactive.context,highPriorityTasks:proactive.highPriorityTasks}}});
 });
 
+persistenceReady = initializePersistence();
+persistenceReady.finally(() => console.log("Amvexa state initialization complete."));
 app.listen(PORT,()=>console.log(`Amvexa AI ${VERSION} ${RELEASE} listening on ${PORT}`));
