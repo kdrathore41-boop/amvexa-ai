@@ -644,6 +644,8 @@
     const statusText = document.getElementById("statusText");
     const voiceButton = document.getElementById("voiceButton");
     let recognition = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
     let listening = false;
     let speakReplies = true;
     let voiceCommand = false;
@@ -653,114 +655,62 @@
     let voiceRetryCount = 0;
 
     function setupVoice() {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        if (voiceButton) voiceButton.disabled = true;
+      const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(SpeechRecognition){
+        recognition=new SpeechRecognition();
+        recognition.lang="hi-IN"; recognition.interimResults=true; recognition.continuous=false; recognition.maxAlternatives=1;
+        recognition.onstart=()=>{voiceRetryCount=0;listening=true;voiceButton.textContent="●";statusText.textContent="Listening...";showToast("I'm listening...");};
+        recognition.onresult=event=>{
+          let finalTranscript="",interimTranscript="";
+          for(let i=event.resultIndex||0;i<event.results.length;i++){
+            const t=event.results[i]?.[0]?.transcript?.trim()||"";
+            if(event.results[i]?.isFinal)finalTranscript+=(finalTranscript?" ":"")+t;else interimTranscript+=(interimTranscript?" ":"")+t;
+          }
+          const visible=(finalTranscript||interimTranscript).trim(); if(visible)input.value=visible;
+          if(finalTranscript){voiceCommand=true;handsFree=false;try{recognition.stop();}catch(_){}sendMessage();}
+        };
+        recognition.onerror=event=>{listening=false;voiceButton.textContent="◉";statusText.textContent="Online";showToast(({ "not-allowed":"Microphone permission is required.","service-not-allowed":"Voice service is blocked on this device.","no-speech":"No speech detected.","audio-capture":"Microphone could not be accessed.","network":"Voice recognition network error."})[event.error]||"Voice input failed.");handsFree=false;};
+        recognition.onend=()=>{listening=false;voiceButton.textContent="◉";if(statusText.textContent==="Listening...")statusText.textContent="Online";};
         return;
       }
-
-      recognition = new SpeechRecognition();
-      recognition.lang = "hi-IN";
-      // Mobile Chrome/WebView is more reliable with a single recognition session.
-      // Restart it automatically when hands-free mode is enabled.
-      recognition.interimResults = true;
-      recognition.continuous = false;
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        voiceRetryCount = 0;
-        if (voiceRestartTimer) { clearTimeout(voiceRestartTimer); voiceRestartTimer = null; }
-        listening = true;
-        voiceButton.textContent = "●";
-        statusText.textContent = "Listening...";
-        showToast("I'm listening...");
-      };
-
-      recognition.onresult = event => {
-        let finalTranscript = "";
-        let interimTranscript = "";
-
-        for (let i = event.resultIndex || 0; i < event.results.length; i++) {
-          const transcript = event.results[i]?.[0]?.transcript?.trim() || "";
-          if (event.results[i]?.isFinal) finalTranscript += (finalTranscript ? " " : "") + transcript;
-          else interimTranscript += (interimTranscript ? " " : "") + transcript;
-        }
-
-        // Show live recognition immediately instead of waiting for the final result.
-        const visibleTranscript = (finalTranscript || interimTranscript).trim();
-        if (visibleTranscript) input.value = visibleTranscript;
-
-        if (finalTranscript) {
-          voiceCommand = true;
-          handsFree = false;
-          try { recognition.stop(); } catch (_) {}
-          sendMessage();
-        }
-      };
-
-      recognition.onerror = event => {
-        listening = false;
-        voiceButton.textContent = "◉";
-        statusText.textContent = "Online";
-
-        const messages = {
-          "not-allowed": "Microphone permission is required.",
-          "service-not-allowed": "Voice service is blocked on this device.",
-          "no-speech": "No speech detected.",
-          "audio-capture": "Microphone could not be accessed.",
-          "network": "Voice recognition network error."
-        };
-
-        showToast(messages[event.error] || "Voice input failed.");
-
-        if (["not-allowed", "service-not-allowed", "audio-capture"].includes(event.error)) {
-          handsFree = false;
-          return;
-        }
-
-        if (handsFree && !sendButton.disabled) {
-          voiceRetryCount = Math.min(voiceRetryCount + 1, 5);
-          const delay = Math.min(5000, 700 * Math.pow(2, voiceRetryCount - 1));
-          voiceRestartTimer = setTimeout(() => {
-            if (!handsFree || listening || sendButton.disabled) return;
-            try { recognition.start(); } catch (_) {}
-          }, delay);
-        }
-      };
-
-      recognition.onend = () => {
-        listening = false;
-        voiceButton.textContent = "◉";
-        if (statusText.textContent === "Listening...") statusText.textContent = "Online";
-
-        if (handsFree && !sendButton.disabled) {
-          if (voiceRestartTimer) clearTimeout(voiceRestartTimer);
-          voiceRestartTimer = setTimeout(() => {
-            if (!handsFree || listening || sendButton.disabled) return;
-            try { recognition.start(); } catch (_) {}
-          }, 700);
-        }
-      };
+      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){voiceButton.disabled=true;return;}
+      voiceButton.title="Tap to record, tap again to send";
     }
 
-    function toggleVoice() {
-      if (!recognition) {
-        showToast("Voice input is not supported by this browser.");
+    async function startRecorderVoice(){
+      if(listening){stopRecorderVoice();return;}
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        const types=["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg"];
+        const mimeType=types.find(t=>MediaRecorder.isTypeSupported(t))||"";
+        mediaRecorder=new MediaRecorder(stream,mimeType?{mimeType}:undefined); recordedChunks=[];
+        mediaRecorder.ondataavailable=e=>{if(e.data?.size)recordedChunks.push(e.data);};
+        mediaRecorder.onstop=async()=>{
+          stream.getTracks().forEach(t=>t.stop());
+          const blob=new Blob(recordedChunks,{type:mediaRecorder.mimeType||mimeType||"audio/webm"});
+          listening=false;voiceButton.textContent="◉";statusText.textContent="Transcribing...";
+          if(!blob.size){statusText.textContent="Online";showToast("No audio captured.");return;}
+          try{
+            const base64=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(",")[1]||"");r.onerror=reject;r.readAsDataURL(blob);});
+            const response=await fetch(API_URL+"/api/voice/transcribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({audio:base64,mimeType:blob.type||"audio/webm"})});
+            const data=await response.json().catch(()=>({}));
+            if(!response.ok||!data.success||!data.transcript)throw new Error(data.error||"Voice transcription failed");
+            input.value=data.transcript.trim();voiceCommand=true;handsFree=false;await sendMessage();
+          }catch(error){statusText.textContent="Online";showToast(error?.message||"Voice input failed.");}
+        };
+        mediaRecorder.start(250);listening=true;voiceButton.textContent="●";statusText.textContent="Listening...";showToast("I'm listening... Tap the mic again when you're done.");
+      }catch(error){listening=false;statusText.textContent="Online";showToast(error?.name==="NotAllowedError"?"Microphone permission is required.":"Microphone could not be accessed.");}
+    }
+
+    function stopRecorderVoice(){if(mediaRecorder&&mediaRecorder.state!=="inactive"){try{mediaRecorder.stop();}catch(_){}}}
+    
+    function toggleVoice(){
+      if(recognition){
+        if(listening){handsFree=false;try{recognition.stop();}catch(_){}}
+        else{handsFree=true;try{recognition.start();}catch(_){showToast("Voice input is already starting.");}}
         return;
       }
-
-      if (listening) {
-        handsFree = false;
-        try { recognition.stop(); } catch (_) {}
-      } else {
-        handsFree = true;
-        try {
-          recognition.start();
-        } catch (error) {
-          // A rapid second tap can reach the browser while start() is still pending.
-          showToast("Voice input is already starting.");
-        }
-      }
+      startRecorderVoice();
     }
 
     function speak(text) {
