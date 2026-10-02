@@ -517,7 +517,7 @@
               id="voiceButton"
               class="tool"
               type="button"
-              onclick="try{window.alert('VOICE BUTTON TAPPED');}catch(_){} try{toggleVoice()}catch(e){} return false;"
+              onclick="try{toggleVoice()}catch(e){try{showToast('Voice input error: '+(e?.message||'Unknown error'));}catch(_){} } return false;"
               aria-label="Voice input"
               title="Voice input"
             >◉</button>
@@ -687,7 +687,10 @@
 
     async function startRecorderVoice(){
       if(listening){stopRecorderVoice();return;}
+      statusText.textContent="Starting microphone...";
+      showToast("Microphone starting...");
       try{
+        if(!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone access is unavailable in this browser.");
         const stream=await navigator.mediaDevices.getUserMedia({audio:true});
         const types=["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg"];
         const mimeType=types.find(t=>MediaRecorder.isTypeSupported(t))||"";
