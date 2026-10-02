@@ -517,7 +517,7 @@
               id="voiceButton"
               class="tool"
               type="button"
-              onclick="try{voiceButton.textContent=listening?'◉':'●'; statusText.textContent=listening?'Stopping...':'Starting voice...'; toggleVoice();}catch(e){statusText.textContent='Voice error'; try{showToast('Voice input error: '+(e?.message||'Unknown error'));}catch(_){} } return false;"
+              onclick="var b=document.getElementById('voiceButton');var s=document.getElementById('statusText');b.textContent='●';if(s)s.textContent='VOICE TAP OK';try{window.toggleVoice();}catch(e){if(s)s.textContent='VOICE ERROR: '+(e&&e.message?e.message:'unknown');}"
               aria-label="Voice input"
               title="Voice input"
             >◉</button>
