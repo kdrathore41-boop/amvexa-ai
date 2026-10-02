@@ -276,6 +276,33 @@ function normalizeTaskReference(message) {
   return text;
 }
 
+function executeTaskInternally(reference) {
+  let task = findTask(reference);
+  if (!task) {
+    const openTasks = tasks.filter(t => t.status !== "done");
+    if (openTasks.length === 1) task = openTasks[0];
+  }
+  if (!task) return { success: false, error: "Task not found" };
+  if (task.status === "done") return { success: false, error: "Task already completed", task };
+  const now = new Date().toISOString();
+  task.status = "in_progress";
+  task.startedAt = task.startedAt || now;
+  task.lastExecutionAt = now;
+  task.executionCount = (task.executionCount || 0) + 1;
+  task.executionStep = "Execution started and task context activated.";
+  writeJson(FILES.tasks, tasks);
+  context.jarvis = {
+    activeOperation: "execute_task",
+    target: task.title,
+    taskId: task.id,
+    startedAt: now,
+    status: "running"
+  };
+  writeJson(FILES.context, context);
+  logAction("execute_task", { reference, taskId: task.id }, { success: true, executed: true, task });
+  return { success: true, executed: true, task };
+}
+
 function completeTask(reference) {
   let task = findTask(reference);
   if (!task && /^(?:इस|उस|यह|वह)\s+(?:काम|टास्क|कार्य)/i.test(String(reference || ""))) {
@@ -476,11 +503,11 @@ async function webSearch(query) {
 function formatWebResponse(result){ if(!result?.success)return result?.error==="Web intelligence is not configured"?"Web intelligence abhi connected nahi hai. TAVILY_API_KEY configure hone ke baad main live internet research kar sakta hoon.":"Web research abhi complete nahi ho payi."; const lines=[]; if(result.answer)lines.push(result.answer.trim()); if(result.results?.length){lines.push("","Sources:"); result.results.forEach((item,index)=>{lines.push((index+1)+". "+(item.title||item.url));if(item.published_date)lines.push("   Date: "+item.published_date);if(item.url)lines.push("   Source: "+item.url);});} return lines.join("\n"); }
 function knowledgeSearch(query){ const terms=String(query||"").toLowerCase().split(/\s+/).filter(x=>x.length>1); return knowledge.map(item=>{const text=`${item.name} ${item.text}`.toLowerCase();const score=terms.reduce((n,term)=>n+(text.includes(term)?1:0),0);return {item,score};}).filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,8).map(x=>({id:x.item.id,name:x.item.name,text:x.item.text.slice(0,2000),score:x.score})); }
 function planTool(message){ const intent=detectIntent(message); if(intent==="autonomous_action") return {tool:"jarvis_autonomous_step",args:{}}; if(intent==="memory"){const content=/\b(hindi|हिंदी)\b/i.test(message)?"Mujhe hamesha Hindi mein jawab dena hai.":extractMemory(message);return {tool:"save_memory",args:{content,kind:/\b(hindi|हिंदी)\b/i.test(message)?"preference":"saved-memory"}};} if(intent==="recall")return {tool:"recall_memory",args:{query:message}}; if(intent==="task_complete")return {tool:"complete_task",args:{reference:normalizeTaskReference(message)}}; if(intent==="music")return {tool:"music_search",args:{query:message}}; if(intent==="reminder"){const title=message.replace(/\b(remind me to|remind me|reminder|yaad dilana|yaad dila|याद दिलाना|याद दिलाओ|bhoolna mat|मत भूलना)\b/ig,"").replace(/^[\s:,-]+/,"").trim(); return title?{tool:"create_task",args:{title:"Reminder: "+title,priority:"high",dueAt:extractDueAt(message)}}:{tool:null,args:{}};} if(intent==="tasks")return {tool:"get_tasks",args:{}}; if(intent==="planning"){let title=taskFromMessage(message); const isExplicitTask=/(?:^|\s)(?:ek|एक)?\s*(?:task|tast|todo|टास्क|कार्य)\s+(?:add|create|creat|banao|बनाओ|bana|बन|बना\s*दो|जोड़|जोड़)\s*(?:karo|karna|do|करो|करना|करें|दो)?(?=\s|[:;,.-]|$)/i.test(message)||/\b(?:add|create|creat|make|set|new)\s+(?:a\s+)?(?:task|tast|todo|टास्क|कार्य)\b/i.test(message); const isImplicitTask=/^\s*(?:kal|tomorrow|aaj|today|कल|आज)\b.+\b(?:karna|karne|karna hai|करना|करने|करना है|dekhna|देखना|देखना है|chahiye|चाहिए|complete|finish|niptana|niptane|पूरा|समाप्त)\b/i.test(message); if(isImplicitTask&&!isExplicitTask) title=message.replace(/^\s*(?:kal|tomorrow|aaj|today|कल|आज)\b\s*/i,"").replace(/^\s*(?:subah|morning|dopahar|afternoon|shaam|evening|raat|night|सुबह|दोपहर|शाम|रात)\b\s*/i,"").replace(/^\s*\d{1,2}(?::\d{2})?\s*(?:am|pm|बजे)?\s*/i,"").replace(/^\s*mujhe\s+/i,"").trim(); if((isExplicitTask||isImplicitTask)&&title)return {tool:"create_task",args:{title,priority:/\b(high|urgent|important|jaruri|zaroori)\b/i.test(message)?"high":"normal",dueAt:extractDueAt(message)}}; return {tool:"get_daily_plan",args:{}};} if(intent==="research"||/\b(news|khabar|today|aaj|latest|current|recent|source|sources|date|tarikh|internet|web|online)\b/i.test(message))return {tool:"web_search",args:{query:message}}; return {tool:null,args:{}}; }
-async function executeTool(tool,args={}){ let result; switch(tool){case"jarvis_autonomous_step":result=autonomousStep();break;case"save_memory":result={success:true,memory:remember(args.content,args.kind||"saved-memory")};break;case"recall_memory":result={success:true,memories:memorySearch(args.query)};break;case"create_task":result={success:true,task:createTask(args.title,args.priority,args.dueAt,args.goalId)};break;case"complete_task":result=completeTask(args.reference);break;case"music_search":result={success:true,action:{type:"music",query:String(args.query||"").trim()||"romantic songs",url:"https://youtube.com/playlist?list=PL-ER7jNwYADztaCaTFnTMGBoGWaIUQ0K4&si=6o-Ln9w2WHvlUKgt",playlist:true}};break;case"get_tasks":result={success:true,tasks};break;case"get_daily_plan":result={success:true,plan:dailyPlan()};break;case"get_next_action":result={success:true,nextAction:nextAction()};break;case"search_knowledge":result={success:true,results:knowledgeSearch(args.query)};break;case"web_search":result=await webSearch(args.query);break;default:return {success:false,error:"Tool not allowed"};} logAction(tool,args,result); return result; }
+async function executeTool(tool,args={}){ let result; switch(tool){case"jarvis_autonomous_step":result=autonomousStep();break;case"execute_task":result=executeTaskInternally(args.reference);break;case"save_memory":result={success:true,memory:remember(args.content,args.kind||"saved-memory")};break;case"recall_memory":result={success:true,memories:memorySearch(args.query)};break;case"create_task":result={success:true,task:createTask(args.title,args.priority,args.dueAt,args.goalId)};break;case"complete_task":result=completeTask(args.reference);break;case"music_search":result={success:true,action:{type:"music",query:String(args.query||"").trim()||"romantic songs",url:"https://youtube.com/playlist?list=PL-ER7jNwYADztaCaTFnTMGBoGWaIUQ0K4&si=6o-Ln9w2WHvlUKgt",playlist:true}};break;case"get_tasks":result={success:true,tasks};break;case"get_daily_plan":result={success:true,plan:dailyPlan()};break;case"get_next_action":result={success:true,nextAction:nextAction()};break;case"search_knowledge":result={success:true,results:knowledgeSearch(args.query)};break;case"web_search":result=await webSearch(args.query);break;default:return {success:false,error:"Tool not allowed"};} logAction(tool,args,result); return result; }
 function verifyTool(tool,result){
   if(!result||result.success!==true)return {verified:false,reason:result?.error||"Tool failed"};
  if(tool==="create_task"){const id=result.task?.id;const task=tasks.find(t=>t.id===id);return {verified:Boolean(id&&task&&task.status!=="done"),reason:"Created task verified"};}
- if(tool==="jarvis_autonomous_step")return {verified:Boolean(result.executed&&result.verified),reason:"Autonomous internal step verified"}; if(tool==="save_memory")return {verified:Boolean(result.memory?.id),reason:"Memory record verified"}; if(tool==="create_task"){const id=result.task?.id;const task=tasks.find(t=>t.id===id);return {verified:Boolean(id&&task&&task.status!=="done"),reason:"Created task verified"};} if(tool==="complete_task"){const id=result.task?.id;const task=tasks.find(t=>t.id===id);return {verified:Boolean(task&&task.status==="done"),reason:"Task completion verified"};}
+ if(tool==="jarvis_autonomous_step")return {verified:Boolean(result.executed&&result.verified),reason:"Autonomous internal step verified"}; if(tool==="execute_task"){const id=result.task?.id;const task=tasks.find(t=>t.id===id);return {verified:Boolean(result.executed&&task&&(task.status==="in_progress"||task.status==="done")),reason:"Task execution start verified"};} if(tool==="save_memory")return {verified:Boolean(result.memory?.id),reason:"Memory record verified"}; if(tool==="create_task"){const id=result.task?.id;const task=tasks.find(t=>t.id===id);return {verified:Boolean(id&&task&&task.status!=="done"),reason:"Created task verified"};} if(tool==="complete_task"){const id=result.task?.id;const task=tasks.find(t=>t.id===id);return {verified:Boolean(task&&task.status==="done"),reason:"Task completion verified"};}
  if(tool==="get_tasks")return {verified:Array.isArray(result.tasks),reason:"Task list structure verified"};
  if(tool==="get_daily_plan")return {verified:Boolean(result.plan&&Array.isArray(result.plan.tasks)&&result.plan.nextAction),reason:"Daily plan structure verified"};
  if(tool==="get_next_action")return {verified:Boolean(result.nextAction&&result.nextAction.type),reason:"Next action structure verified"};
@@ -627,23 +654,12 @@ app.get("/api/proactive",(req,res)=>{
 app.post("/api/jarvis/execute", async (req,res)=>{
   const state=jarvisContext();
   const decision=buildDecision(state.nextAction);
-  if(!decisionNeedsUserAction(decision)){
-    return res.json({success:true,executed:false,reason:"No user-controlled task execution required",decision,state,checkedAt:new Date().toISOString()});
+  if(decision.operation!=="work_on_task"){
+    return res.json({success:true,executed:false,reason:"No active task available",decision,state,checkedAt:new Date().toISOString()});
   }
-  const task=tasks.find(t=>t.id===decision.taskId);
-  if(!task || task.status==="done"){
-    return res.status(409).json({success:false,executed:false,error:"Task is no longer open",decision});
-  }
-  return res.json({
-    success:true,
-    executed:false,
-    requiresUserAction:true,
-    action:"task_ready",
-    decision,
-    task:{id:task.id,title:task.title,priority:task.priority,dueAt:task.dueAt||null,status:task.status},
-    message:"Task is ready. User action is required before consequential work.",
-    checkedAt:new Date().toISOString()
-  });
+  const result=executeTaskInternally(decision.taskId);
+  const verification=verifyTool("execute_task",result);
+  return res.json({success:Boolean(verification.verified),executed:Boolean(result.executed),action:"task_execution_started",decision,result,verification,nextAction:jarvisContext().nextAction,checkedAt:new Date().toISOString()});
 });
 
 app.get("/api/jarvis/decision",(req,res)=>{
@@ -694,9 +710,10 @@ app.post("/api/chat", async (req,res)=>{
   const detectedIntent = detectIntent(message);
   // High-priority deterministic commands must bypass the generative AI fallback.
   const autonomousDirect = /^(?:khud\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)[.!?।\s]*$/i.test(message);
+  const executeTaskDirect = /^(?:is\s+task\s+ko\s+khud\s+execute\s+karo|is\s+task\s+ko\s+execute\s+karo|task\s+ko\s+khud\s+execute\s+karo|execute\s+this\s+task|execute\s+the\s+task)[.!?।\s]*$/i.test(message);
   // Reminder phrases are deterministic and must work even when the generative AI is unavailable.
   const reminderDirect = /(?:remind|reminder|yaad\s+dila(?:na|o)?|याद\s*दिलाना|याद\s*दिलाओ|bhoolna\s+mat|मत\s*भूलना)/i.test(message);
-  const plan=autonomousDirect ? {tool:"jarvis_autonomous_step",args:{}} : reminderDirect ? {tool:"create_task",args:{title:"Reminder: "+message.replace(/(?:remind\s+me\s+to|remind\s+me|reminder|yaad\s+dilana|yaad\s+dila|याद\s*दिलाना|याद\s*दिलाओ|bhoolna\s+mat|मत\s*भूलना)/ig,"").replace(/[\s:,-]+/g," ").trim(),priority:"high",dueAt:extractDueAt(message)}} : planTool(message);
+  const plan=executeTaskDirect ? {tool:"execute_task",args:{reference:""}} : autonomousDirect ? {tool:"jarvis_autonomous_step",args:{}} : reminderDirect ? {tool:"create_task",args:{title:"Reminder: "+message.replace(/(?:remind\s+me\s+to|remind\s+me|reminder|yaad\s+dilana|yaad\s+dila|याद\s*दिलाना|याद\s*दिलाओ|bhoolna\s+mat|मत\s*भूलना)/ig,"").replace(/[\s:,-]+/g," ").trim(),priority:"high",dueAt:extractDueAt(message)}} : planTool(message);
   updatePersonalAlgorithm(message, plan.tool === "create_task" ? "planning" : plan.tool === "get_tasks" ? "tasks" : plan.tool === "complete_task" ? "task_complete" : plan.tool || detectedIntent);
   let toolResult=null; let verification=null; let responseText="";
   try{
@@ -707,7 +724,7 @@ app.post("/api/chat", async (req,res)=>{
     if(!responseText && !plan.tool && /^(mujhse|mujh se)\s+(normal|casual)\s+baat\s*(karo|karna|kijiye)?[.!?]*$/i.test(message)){responseText="Bilkul 😊 Aap aaram se baat kijiye. Main yahin hoon.";}
     if(!responseText && plan.tool){toolResult=await executeTool(plan.tool,plan.args);verification=verifyTool(plan.tool,toolResult);}
     if(!responseText){
-    if(plan.tool==="jarvis_autonomous_step"&&verification?.verified){responseText="Samajh gaya. Maine khud next action decide karke execution start kar diya.\n\nTarget: " + toolResult.target + "\nPehla step: " + toolResult.firstStep + "\nExecution verified.";
+    if(plan.tool==="execute_task"&&verification?.verified){responseText="Samajh gaya. Maine active task ko khud execute karna shuru kar diya.\n\nTask: " + toolResult.task.title + "\nStatus: " + toolResult.task.status + "\nStep: " + toolResult.task.executionStep + "\nExecution verified.";}else if(plan.tool==="jarvis_autonomous_step"&&verification?.verified){responseText="Samajh gaya. Maine khud next action decide karke execution start kar diya.\n\nTarget: " + toolResult.target + "\nPehla step: " + toolResult.firstStep + "\nExecution verified.";
     }else if(plan.tool==="save_memory"&&verification?.verified){responseText=`Theek hai, maine yaad rakh liya: "${toolResult.memory.content}"`;
     }else if(plan.tool==="recall_memory"){
       const found=toolResult?.memories||[]; const name=found.find(m=>/^User ka naam\s+.+$/i.test(m.content))?.content.match(/^User ka naam\s+(.+)$/i)?.[1]?.trim(); responseText=(/\b(mera naam|my name|what is my name|what's my name)\b/i.test(message)&&name)?`Aapka naam ${name}.`:found.length?found.map((m,i)=>`${i+1}. ${m.content}`).join("\n"):"Abhi mujhe matching memory nahi mili.";
