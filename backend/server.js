@@ -710,7 +710,7 @@ app.post("/api/chat", async (req,res)=>{
   const detectedIntent = detectIntent(message);
   // High-priority deterministic commands must bypass the generative AI fallback.
   const autonomousDirect = /^(?:khud\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)[.!?।\s]*$/i.test(message);
-  const executeTaskDirect = /^(?:is\s+task\s+ko\s+khud\s+execute\s+karo|is\s+task\s+ko\s+execute\s+karo|task\s+ko\s+khud\s+execute\s+karo|execute\s+this\s+task|execute\s+the\s+task)[.!?।\s]*$/i.test(message);
+  const executeTaskDirect = /^(?:is\s+task\s+ko\s+khud\s+(?:execute|exicute)\s+karo|is\s+task\s+ko\s+(?:execute|exicute)\s+karo|task\s+ko\s+khud\s+(?:execute|exicute)\s+karo|execute\s+this\s+task|execute\s+the\s+task)[.!?।\s]*$/i.test(message);
   // Reminder phrases are deterministic and must work even when the generative AI is unavailable.
   const reminderDirect = /(?:remind|reminder|yaad\s+dila(?:na|o)?|याद\s*दिलाना|याद\s*दिलाओ|bhoolna\s+mat|मत\s*भूलना)/i.test(message);
   const plan=executeTaskDirect ? {tool:"execute_task",args:{reference:""}} : autonomousDirect ? {tool:"jarvis_autonomous_step",args:{}} : reminderDirect ? {tool:"create_task",args:{title:"Reminder: "+message.replace(/(?:remind\s+me\s+to|remind\s+me|reminder|yaad\s+dilana|yaad\s+dila|याद\s*दिलाना|याद\s*दिलाओ|bhoolna\s+mat|मत\s*भूलना)/ig,"").replace(/[\s:,-]+/g," ").trim(),priority:"high",dueAt:extractDueAt(message)}} : planTool(message);
