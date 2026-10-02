@@ -256,11 +256,24 @@ function findTask(reference) {
 }
 
 function normalizeTaskReference(message) {
-  return String(message || "")
+  let text = String(message || "")
     .replace(/^\s*(?:please\s+)?(?:complete|finish|done|mark)\s+(?:the\s+)?(?:task|todo)\s*/i, "")
     .replace(/^\s*(?:is\s+)?(?:task|todo)\s*/i, "")
     .replace(/^\s*[:,-]+\s*/, "")
     .trim();
+
+  // Natural completion commands often contain the task title first and
+  // the completion instruction after it, e.g.:
+  // "Amvexa test complete ho gaya, ise complete mark karo"
+  // "Amvexa test complete हो गया, इसे complete mark करो"
+  // Extract the title before the completion phrase so findTask() can match it.
+  text = text
+    .replace(/\s+(?:complete|finished?|done)\s+(?:ho\s+gaya|ho\s+gayi|ho\s+gye|ह[ोो]\s*गया|ह[ोो]\s*गई|ह[ोो]\s*गए)[,\s]*(?:ise|इसे|isey)\s+(?:complete|done|finish)\s+(?:mark\s+)?(?:karo|kar\s+do|करो|कर\s*दो)\s*$/i, "")
+    .replace(/\s+(?:complete|finished?|done)\s+(?:ho\s+gaya|ho\s+gayi|ho\s+gye|ह[ोो]\s*गया|ह[ोो]\s*गई|ह[ोो]\s*गए)\s*$/i, "")
+    .replace(/\s+(?:complete|done|finish(?:ed)?)\s*(?:mark\s+)?(?:karo|kar\s+do|करो|कर\s*दो)\s*$/i, "")
+    .trim();
+
+  return text;
 }
 
 function completeTask(reference) {
