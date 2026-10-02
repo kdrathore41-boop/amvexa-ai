@@ -884,21 +884,23 @@ app.post("/api/voice/transcribe", async (req,res)=>{
       body:JSON.stringify({
         contents:[{
           parts:[
-            {text:"Generate a transcript of the speech. The speaker may use Hindi, Hinglish, or English. Return only the transcription text."},
+            {text:"Transcribe the speech exactly. The speaker may use Hindi, Hinglish, or English. Return only the transcription text."},
             {inlineData:{mimeType,data:audio}}
           ]
-        }],
-        generationConfig:{audioTranscriptionConfig:{languageCodes:["hi-IN"]}}
+        }]
       }),
       signal:controller.signal
     });
     const data=await response.json().catch(()=>({}));
-    if(!response.ok)return res.status(502).json({success:false,error:data?.error?.message||"Voice transcription failed"});
+    if(!response.ok){
+      const detail=data?.error?.message||"Voice transcription failed";
+      return res.status(502).json({success:false,error:detail});
+    }
     const transcript=String(data?.candidates?.[0]?.content?.parts?.map(p=>p?.text||"").join(" ")||"").trim();
     if(!transcript)return res.status(502).json({success:false,error:"No speech transcription returned"});
     return res.json({success:true,transcript});
   }catch(error){
-    return res.status(502).json({success:false,error:error?.name==="AbortError"?"Voice transcription timed out":"Voice transcription unavailable"});
+    return res.status(502).json({success:false,error:error?.name==="AbortError"?"Voice transcription timed out":(error?.message||"Voice transcription unavailable")});
   }finally{clearTimeout(timeout);}
 });
 app.post("/api/chat", async (req,res)=>{
