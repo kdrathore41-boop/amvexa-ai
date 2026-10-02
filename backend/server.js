@@ -874,26 +874,33 @@ app.post("/api/voice/transcribe", async (req,res)=>{
   const mimeType=String(req.body?.mimeType||"audio/webm").split(";")[0];
   if(!audio)return res.status(400).json({success:false,error:"Audio is required"});
   if(audio.length>11000000)return res.status(413).json({success:false,error:"Audio is too large"});
-  const model=process.env.GEMINI_MODEL||"gemini-3.8-flash";
-  const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),30000);
+  const model="gemini-3.5-transcribe";
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),30000);
   try{
-    const response=await fetch("https://generativelanguage.googleapis.com/v1beta/interactions",{
-      method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":apiKey},
-      body:JSON.stringify({model,input:[
-        {type:"text",text:"Transcribe the spoken words exactly. The speaker may use Hindi, Hinglish, or English. Return only the transcription text, with no explanation."},
-        {type:"audio",data:audio,mime_type:mimeType}
-      ]}),signal:controller.signal
+    const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-goog-api-key":apiKey},
+      body:JSON.stringify({
+        contents:[{
+          parts:[
+            {text:"Generate a transcript of the speech. The speaker may use Hindi, Hinglish, or English. Return only the transcription text."},
+            {inlineData:{mimeType,data:audio}}
+          ]
+        }],
+        generationConfig:{audioTranscriptionConfig:{languageCodes:["hi-IN"]}}
+      }),
+      signal:controller.signal
     });
     const data=await response.json().catch(()=>({}));
     if(!response.ok)return res.status(502).json({success:false,error:data?.error?.message||"Voice transcription failed"});
-    const transcript=String(data?.output_text||"").trim();
+    const transcript=String(data?.candidates?.[0]?.content?.parts?.map(p=>p?.text||"").join(" ")||"").trim();
     if(!transcript)return res.status(502).json({success:false,error:"No speech transcription returned"});
     return res.json({success:true,transcript});
   }catch(error){
     return res.status(502).json({success:false,error:error?.name==="AbortError"?"Voice transcription timed out":"Voice transcription unavailable"});
   }finally{clearTimeout(timeout);}
 });
-
 app.post("/api/chat", async (req,res)=>{
   const message=String(req.body?.message||"").trim();
   if(!message)return res.status(400).json({success:false,error:"Message is required"});
