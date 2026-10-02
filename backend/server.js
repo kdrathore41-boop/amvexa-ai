@@ -705,7 +705,8 @@ app.post("/api/chat", async (req,res)=>{
     if(!responseText && !plan.tool && /^(mujhse|mujh se)\s+(normal|casual)\s+baat\s*(karo|karna|kijiye)?[.!?]*$/i.test(message)){responseText="Bilkul 😊 Aap aaram se baat kijiye. Main yahin hoon.";}
     if(!responseText && plan.tool){toolResult=await executeTool(plan.tool,plan.args);verification=verifyTool(plan.tool,toolResult);}
     if(!responseText){
-    if(plan.tool==="jarvis_autonomous_step"&&verification?.verified){responseText="Samajh gaya. Maine khud next action decide karke execution start kar diya.\n\nTarget: " + toolResult.target + "\nPehla step: " + toolResult.firstStep + "\nExecution verified.";\n    }else if(plan.tool==="save_memory"&&verification?.verified){responseText=`Theek hai, maine yaad rakh liya: "${toolResult.memory.content}"`;
+    if(plan.tool==="jarvis_autonomous_step"&&verification?.verified){responseText="Samajh gaya. Maine khud next action decide karke execution start kar diya.\n\nTarget: " + toolResult.target + "\nPehla step: " + toolResult.firstStep + "\nExecution verified.";
+    }else if(plan.tool==="save_memory"&&verification?.verified){responseText=`Theek hai, maine yaad rakh liya: "${toolResult.memory.content}"`;
     }else if(plan.tool==="recall_memory"){
       const found=toolResult?.memories||[]; const name=found.find(m=>/^User ka naam\s+.+$/i.test(m.content))?.content.match(/^User ka naam\s+(.+)$/i)?.[1]?.trim(); responseText=(/\b(mera naam|my name|what is my name|what's my name)\b/i.test(message)&&name)?`Aapka naam ${name}.`:found.length?found.map((m,i)=>`${i+1}. ${m.content}`).join("\n"):"Abhi mujhe matching memory nahi mili.";
     }else if(plan.tool==="web_search"){responseText=formatWebResponse(toolResult);}
