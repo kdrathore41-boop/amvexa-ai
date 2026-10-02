@@ -1202,16 +1202,34 @@
       }, 2500);
     }
 
-    // One direct listener handles every voice tap, including the stop tap on Android.
-    document.getElementById("voiceButton")?.addEventListener("click", (event) => {
+    // Android-safe voice gesture handler: capture pointer/touch before click dispatch.
+    let voiceGestureHandled = false;
+    function handleVoiceGesture(event) {
+      if (event.type === "click" && voiceGestureHandled) {
+        voiceGestureHandled = false;
+        return;
+      }
+      if (event.type !== "click") voiceGestureHandled = true;
       event.preventDefault();
       event.stopPropagation();
-      try { window.toggleVoice(); }
-      catch (error) {
+      try {
+        if (listening) statusText.textContent = "STOP TAP RECEIVED";
+        window.toggleVoice();
+      } catch (error) {
         statusText.textContent = "VOICE ERROR";
         showToast(String(error?.message || error || "Voice input failed"));
       }
-    });
+    }
+    const voiceArea = document.getElementById("voiceButton");
+    if (voiceArea) {
+      voiceArea.style.touchAction = "manipulation";
+      voiceArea.style.pointerEvents = "auto";
+      voiceArea.style.position = "relative";
+      voiceArea.style.zIndex = "20";
+      voiceArea.addEventListener("pointerup", handleVoiceGesture, {capture:true});
+      voiceArea.addEventListener("touchend", handleVoiceGesture, {capture:true, passive:false});
+      voiceArea.addEventListener("click", handleVoiceGesture, {capture:true});
+    }
 
     setupVoice();
 
