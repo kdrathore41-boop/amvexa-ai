@@ -675,7 +675,12 @@
         recognition.onend=()=>{listening=false;voiceButton.textContent="◉";if(statusText.textContent==="Listening...")statusText.textContent="Online";};
         return;
       }
-      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){voiceButton.disabled=true;return;}
+      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){
+        voiceButton.disabled=false;
+        voiceButton.title="Voice input";
+        return;
+      }
+      voiceButton.disabled=false;
       voiceButton.title="Tap to record, tap again to send";
     }
 
