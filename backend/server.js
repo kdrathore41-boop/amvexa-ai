@@ -356,7 +356,7 @@ function extractDueAt(message) {
 }
 
 function taskFromMessage(message) {
-  let title = String(message || "").trim();  title = title.replace(/^\s*[“"']?\s*(?:(?:ek|एक)\s+)?(?:task|tast|todo|टास्क|कार्य)\s+(?:add|create|creat|bana|बन|जोड़|जोड़)\s*(?:karo|karna|do|करो|करना|करें|दो)?\b\s*[,;:\-]?\s*/i, "");
+  let title = String(message || "").trim();  title = title.replace(/^\s*[“"']?\s*(?:(?:ek|एक)\s+)?(?:task|tast|todo|टास्क|कार्य)\s+(?:add|create|creat|bana|बन|बनाओ|बना\s*दो|जोड़|जोड़)\s*(?:karo|karna|do|करो|करना|करें|दो)?\b\s*[,;:\-]?\s*/i, "");
   title = title.replace(/^\s*[“"']?\s*(?:add|create|creat|make|set|new)\s+(?:a\s+)?(?:task|tast|todo|टास्क|कार्य)\b\s*(?:karo|karna|do|करो|करना|करें|दो)?\s*[,;:\-]?\s*/i, "");
   title = title.replace(/^\s*(?:करो|करना|करें|दो|do|karo|karna)\s+/i, ""); title = title.replace(/[”"']\s*$/, "").trim();
   return title;
