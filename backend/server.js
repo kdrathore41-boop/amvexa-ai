@@ -295,7 +295,7 @@ function createTask(title, priority = "normal", dueAt = null, goalId = null) {
     writeJson(FILES.tasks, tasks);
     return existing;
   }
-  const task = { id: `task_${Date.now()}`, title: cleanTitle, priority: ["high", "normal", "low"].includes(priority) ? priority : "normal", status: "open", createdAt: new Date().toISOString(), ...(dueAt ? {dueAt} : {}), ...(goalId ? {goalId} : {}) };
+  const task = { id: `task_${Date.now()}_${Math.random().toString(36).slice(2,8)}`, title: cleanTitle, priority: ["high", "normal", "low"].includes(priority) ? priority : "normal", status: "open", createdAt: new Date().toISOString(), ...(dueAt ? {dueAt} : {}), ...(goalId ? {goalId} : {}) };
   tasks.push(task); tasks = tasks.slice(-MAX.tasks); writeJson(FILES.tasks, tasks);
   if (goalId) {
     const goal = goals.find(g => g.id === goalId);
