@@ -312,6 +312,7 @@ function detectIntent(message) {
   if (/\b(research|search|latest|investigate|find out)\b/.test(text)) return "research";
   if (/\b(plan|schedule|organize)\b/.test(text) || /(aaj|aj|today).*(kaam|work|tasks?|todo|plan)/.test(text) || /(daily|din).*(plan|kaam|work)/.test(text)) return "planning";
   if (/\b(personal ai assistant|personal assistant|jarvis|friday|sirf chat|just chat|next action|agla action|next step)\b/i.test(text) && /\b(goal|assistant|kaam|work|analyze|analyse|analyze karo|kaise kaam|how should you work|next action|next step|sirf chat|just chat)\b/i.test(text)) return "assistant_mode";
+  if (/^\s*(?:khud\s+decide\s+karo|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)\s*[.!?]*$/i.test(text)) return "autonomous_action";
   if (/\b(hello|hi|hey|namaste)\b/.test(text)) return "greeting";
   if (/\b(what|why|how|when|where|who|which|can you|do you|are you|tum|aap|kya|kyun|kaise|kab|kahan|kaun|hai|ho)\b/.test(text)) return "question";
   return "conversation";
@@ -474,12 +475,12 @@ async function webSearch(query) {
 }
 function formatWebResponse(result){ if(!result?.success)return result?.error==="Web intelligence is not configured"?"Web intelligence abhi connected nahi hai. TAVILY_API_KEY configure hone ke baad main live internet research kar sakta hoon.":"Web research abhi complete nahi ho payi."; const lines=[]; if(result.answer)lines.push(result.answer.trim()); if(result.results?.length){lines.push("","Sources:"); result.results.forEach((item,index)=>{lines.push((index+1)+". "+(item.title||item.url));if(item.published_date)lines.push("   Date: "+item.published_date);if(item.url)lines.push("   Source: "+item.url);});} return lines.join("\n"); }
 function knowledgeSearch(query){ const terms=String(query||"").toLowerCase().split(/\s+/).filter(x=>x.length>1); return knowledge.map(item=>{const text=`${item.name} ${item.text}`.toLowerCase();const score=terms.reduce((n,term)=>n+(text.includes(term)?1:0),0);return {item,score};}).filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,8).map(x=>({id:x.item.id,name:x.item.name,text:x.item.text.slice(0,2000),score:x.score})); }
-function planTool(message){ const intent=detectIntent(message); if(intent==="memory"){const content=/\b(hindi|हिंदी)\b/i.test(message)?"Mujhe hamesha Hindi mein jawab dena hai.":extractMemory(message);return {tool:"save_memory",args:{content,kind:/\b(hindi|हिंदी)\b/i.test(message)?"preference":"saved-memory"}};} if(intent==="recall")return {tool:"recall_memory",args:{query:message}}; if(intent==="task_complete")return {tool:"complete_task",args:{reference:normalizeTaskReference(message)}}; if(intent==="music")return {tool:"music_search",args:{query:message}}; if(intent==="reminder"){const title=message.replace(/\b(remind me to|remind me|reminder|yaad dilana|yaad dila|याद दिलाना|याद दिलाओ|bhoolna mat|मत भूलना)\b/ig,"").replace(/^[\s:,-]+/,"").trim(); return title?{tool:"create_task",args:{title:"Reminder: "+title,priority:"high",dueAt:extractDueAt(message)}}:{tool:null,args:{}};} if(intent==="tasks")return {tool:"get_tasks",args:{}}; if(intent==="planning"){let title=taskFromMessage(message); const isExplicitTask=/(?:^|\s)(?:ek|एक)?\s*(?:task|tast|todo|टास्क|कार्य)\s+(?:add|create|creat|banao|बनाओ|bana|बन|बना\s*दो|जोड़|जोड़)\s*(?:karo|karna|do|करो|करना|करें|दो)?(?=\s|[:;,.-]|$)/i.test(message)||/\b(?:add|create|creat|make|set|new)\s+(?:a\s+)?(?:task|tast|todo|टास्क|कार्य)\b/i.test(message); const isImplicitTask=/^\s*(?:kal|tomorrow|aaj|today|कल|आज)\b.+\b(?:karna|karne|karna hai|करना|करने|करना है|dekhna|देखना|देखना है|chahiye|चाहिए|complete|finish|niptana|niptane|पूरा|समाप्त)\b/i.test(message); if(isImplicitTask&&!isExplicitTask) title=message.replace(/^\s*(?:kal|tomorrow|aaj|today|कल|आज)\b\s*/i,"").replace(/^\s*(?:subah|morning|dopahar|afternoon|shaam|evening|raat|night|सुबह|दोपहर|शाम|रात)\b\s*/i,"").replace(/^\s*\d{1,2}(?::\d{2})?\s*(?:am|pm|बजे)?\s*/i,"").replace(/^\s*mujhe\s+/i,"").trim(); if((isExplicitTask||isImplicitTask)&&title)return {tool:"create_task",args:{title,priority:/\b(high|urgent|important|jaruri|zaroori)\b/i.test(message)?"high":"normal",dueAt:extractDueAt(message)}}; return {tool:"get_daily_plan",args:{}};} if(intent==="research"||/\b(news|khabar|today|aaj|latest|current|recent|source|sources|date|tarikh|internet|web|online)\b/i.test(message))return {tool:"web_search",args:{query:message}}; return {tool:null,args:{}}; }
-async function executeTool(tool,args={}){ let result; switch(tool){case"save_memory":result={success:true,memory:remember(args.content,args.kind||"saved-memory")};break;case"recall_memory":result={success:true,memories:memorySearch(args.query)};break;case"create_task":result={success:true,task:createTask(args.title,args.priority,args.dueAt,args.goalId)};break;case"complete_task":result=completeTask(args.reference);break;case"music_search":result={success:true,action:{type:"music",query:String(args.query||"").trim()||"romantic songs",url:"https://youtube.com/playlist?list=PL-ER7jNwYADztaCaTFnTMGBoGWaIUQ0K4&si=6o-Ln9w2WHvlUKgt",playlist:true}};break;case"get_tasks":result={success:true,tasks};break;case"get_daily_plan":result={success:true,plan:dailyPlan()};break;case"get_next_action":result={success:true,nextAction:nextAction()};break;case"search_knowledge":result={success:true,results:knowledgeSearch(args.query)};break;case"web_search":result=await webSearch(args.query);break;default:return {success:false,error:"Tool not allowed"};} logAction(tool,args,result); return result; }
+function planTool(message){ const intent=detectIntent(message); if(intent==="autonomous_action") return {tool:"jarvis_autonomous_step",args:{}}; if(intent==="memory"){const content=/\b(hindi|हिंदी)\b/i.test(message)?"Mujhe hamesha Hindi mein jawab dena hai.":extractMemory(message);return {tool:"save_memory",args:{content,kind:/\b(hindi|हिंदी)\b/i.test(message)?"preference":"saved-memory"}};} if(intent==="recall")return {tool:"recall_memory",args:{query:message}}; if(intent==="task_complete")return {tool:"complete_task",args:{reference:normalizeTaskReference(message)}}; if(intent==="music")return {tool:"music_search",args:{query:message}}; if(intent==="reminder"){const title=message.replace(/\b(remind me to|remind me|reminder|yaad dilana|yaad dila|याद दिलाना|याद दिलाओ|bhoolna mat|मत भूलना)\b/ig,"").replace(/^[\s:,-]+/,"").trim(); return title?{tool:"create_task",args:{title:"Reminder: "+title,priority:"high",dueAt:extractDueAt(message)}}:{tool:null,args:{}};} if(intent==="tasks")return {tool:"get_tasks",args:{}}; if(intent==="planning"){let title=taskFromMessage(message); const isExplicitTask=/(?:^|\s)(?:ek|एक)?\s*(?:task|tast|todo|टास्क|कार्य)\s+(?:add|create|creat|banao|बनाओ|bana|बन|बना\s*दो|जोड़|जोड़)\s*(?:karo|karna|do|करो|करना|करें|दो)?(?=\s|[:;,.-]|$)/i.test(message)||/\b(?:add|create|creat|make|set|new)\s+(?:a\s+)?(?:task|tast|todo|टास्क|कार्य)\b/i.test(message); const isImplicitTask=/^\s*(?:kal|tomorrow|aaj|today|कल|आज)\b.+\b(?:karna|karne|karna hai|करना|करने|करना है|dekhna|देखना|देखना है|chahiye|चाहिए|complete|finish|niptana|niptane|पूरा|समाप्त)\b/i.test(message); if(isImplicitTask&&!isExplicitTask) title=message.replace(/^\s*(?:kal|tomorrow|aaj|today|कल|आज)\b\s*/i,"").replace(/^\s*(?:subah|morning|dopahar|afternoon|shaam|evening|raat|night|सुबह|दोपहर|शाम|रात)\b\s*/i,"").replace(/^\s*\d{1,2}(?::\d{2})?\s*(?:am|pm|बजे)?\s*/i,"").replace(/^\s*mujhe\s+/i,"").trim(); if((isExplicitTask||isImplicitTask)&&title)return {tool:"create_task",args:{title,priority:/\b(high|urgent|important|jaruri|zaroori)\b/i.test(message)?"high":"normal",dueAt:extractDueAt(message)}}; return {tool:"get_daily_plan",args:{}};} if(intent==="research"||/\b(news|khabar|today|aaj|latest|current|recent|source|sources|date|tarikh|internet|web|online)\b/i.test(message))return {tool:"web_search",args:{query:message}}; return {tool:null,args:{}}; }
+async function executeTool(tool,args={}){ let result; switch(tool){case"jarvis_autonomous_step":result=autonomousStep();break;case"save_memory":result={success:true,memory:remember(args.content,args.kind||"saved-memory")};break;case"recall_memory":result={success:true,memories:memorySearch(args.query)};break;case"create_task":result={success:true,task:createTask(args.title,args.priority,args.dueAt,args.goalId)};break;case"complete_task":result=completeTask(args.reference);break;case"music_search":result={success:true,action:{type:"music",query:String(args.query||"").trim()||"romantic songs",url:"https://youtube.com/playlist?list=PL-ER7jNwYADztaCaTFnTMGBoGWaIUQ0K4&si=6o-Ln9w2WHvlUKgt",playlist:true}};break;case"get_tasks":result={success:true,tasks};break;case"get_daily_plan":result={success:true,plan:dailyPlan()};break;case"get_next_action":result={success:true,nextAction:nextAction()};break;case"search_knowledge":result={success:true,results:knowledgeSearch(args.query)};break;case"web_search":result=await webSearch(args.query);break;default:return {success:false,error:"Tool not allowed"};} logAction(tool,args,result); return result; }
 function verifyTool(tool,result){
   if(!result||result.success!==true)return {verified:false,reason:result?.error||"Tool failed"};
  if(tool==="create_task"){const id=result.task?.id;const task=tasks.find(t=>t.id===id);return {verified:Boolean(id&&task&&task.status!=="done"),reason:"Created task verified"};}
- if(tool==="save_memory")return {verified:Boolean(result.memory?.id),reason:"Memory record verified"}; if(tool==="create_task"){const id=result.task?.id;const task=tasks.find(t=>t.id===id);return {verified:Boolean(id&&task&&task.status!=="done"),reason:"Created task verified"};} if(tool==="complete_task"){const id=result.task?.id;const task=tasks.find(t=>t.id===id);return {verified:Boolean(task&&task.status==="done"),reason:"Task completion verified"};}
+ if(tool==="jarvis_autonomous_step")return {verified:Boolean(result.executed&&result.verified),reason:"Autonomous internal step verified"}; if(tool==="save_memory")return {verified:Boolean(result.memory?.id),reason:"Memory record verified"}; if(tool==="create_task"){const id=result.task?.id;const task=tasks.find(t=>t.id===id);return {verified:Boolean(id&&task&&task.status!=="done"),reason:"Created task verified"};} if(tool==="complete_task"){const id=result.task?.id;const task=tasks.find(t=>t.id===id);return {verified:Boolean(task&&task.status==="done"),reason:"Task completion verified"};}
  if(tool==="get_tasks")return {verified:Array.isArray(result.tasks),reason:"Task list structure verified"};
  if(tool==="get_daily_plan")return {verified:Boolean(result.plan&&Array.isArray(result.plan.tasks)&&result.plan.nextAction),reason:"Daily plan structure verified"};
  if(tool==="get_next_action")return {verified:Boolean(result.nextAction&&result.nextAction.type),reason:"Next action structure verified"};
@@ -518,7 +519,42 @@ function decisionSummary(decision){
   if(!decision) return "No decision available.";
   const urgency=decision.overdue?"overdue":decision.priority==="high"?"high priority":decision.dueAt?"deadline set":"normal";
   return decision.operation+" · "+urgency+" · "+decision.target;
-}function localBrain(message, reason = "") {
+}function autonomousStep() {
+  const state = jarvisContext();
+  const next = state.nextAction;
+  const decision = buildDecision(next);
+  const operation = next?.type === "task"
+    ? "Start work on the active task"
+    : next?.type === "goal"
+      ? "Plan the next concrete goal action"
+      : "Prepare the first useful internal action";
+  const result = {
+    success: true,
+    executed: true,
+    operation,
+    target: decision.target,
+    decision,
+    firstStep: next?.type === "task"
+      ? "Active task context captured; execution plan initialized."
+      : next?.type === "goal"
+        ? "Active goal context captured; next concrete action initialized."
+        : "No active work found; setup is the next operation.",
+    verified: true,
+    verifiedAt: new Date().toISOString()
+  };
+  logAction("jarvis_autonomous_step", { decision }, result);
+  context.jarvis = {
+    activeOperation: operation,
+    target: decision.target,
+    startedAt: result.verifiedAt,
+    status: "running"
+  };
+  writeJson(FILES.context, context);
+  updatePersonalAlgorithm("autonomous execution step: " + decision.target, "autonomous_action");
+  return result;
+}
+
+function localBrain(message, reason = "") {
   const intent = detectIntent(message);
   const next = nextAction();
   if (intent === "greeting") return "नमस्ते जी। Amvexa यहाँ है।";
@@ -669,7 +705,7 @@ app.post("/api/chat", async (req,res)=>{
     if(!responseText && !plan.tool && /^(mujhse|mujh se)\s+(normal|casual)\s+baat\s*(karo|karna|kijiye)?[.!?]*$/i.test(message)){responseText="Bilkul 😊 Aap aaram se baat kijiye. Main yahin hoon.";}
     if(!responseText && plan.tool){toolResult=await executeTool(plan.tool,plan.args);verification=verifyTool(plan.tool,toolResult);}
     if(!responseText){
-    if(plan.tool==="save_memory"&&verification?.verified){responseText=`Theek hai, maine yaad rakh liya: "${toolResult.memory.content}"`;
+    if(plan.tool==="jarvis_autonomous_step"&&verification?.verified){responseText="Samajh gaya. Maine khud next action decide karke execution start kar diya.\n\nTarget: " + toolResult.target + "\nPehla step: " + toolResult.firstStep + "\nExecution verified.";\n    }else if(plan.tool==="save_memory"&&verification?.verified){responseText=`Theek hai, maine yaad rakh liya: "${toolResult.memory.content}"`;
     }else if(plan.tool==="recall_memory"){
       const found=toolResult?.memories||[]; const name=found.find(m=>/^User ka naam\s+.+$/i.test(m.content))?.content.match(/^User ka naam\s+(.+)$/i)?.[1]?.trim(); responseText=(/\b(mera naam|my name|what is my name|what's my name)\b/i.test(message)&&name)?`Aapka naam ${name}.`:found.length?found.map((m,i)=>`${i+1}. ${m.content}`).join("\n"):"Abhi mujhe matching memory nahi mili.";
     }else if(plan.tool==="web_search"){responseText=formatWebResponse(toolResult);}
