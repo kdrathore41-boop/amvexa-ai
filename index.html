@@ -658,7 +658,52 @@
 
     function setupVoice() {
       voiceButton.disabled = false;
-      voiceButton.title = "Tap once to start, tap again to stop";
+      voiceButton.title = "Tap once to speak";
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.lang = "hi-IN";
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        recognition.onstart = () => {
+          listening = true;
+          voiceCommand = true;
+          voiceButton.textContent = "●";
+          statusText.textContent = "Listening...";
+          showToast("मैं सुन रहा हूँ…");
+        };
+        recognition.onresult = async (event) => {
+          const transcript = String(event.results?.[0]?.[0]?.transcript || "").trim();
+          listening = false;
+          voiceButton.textContent = "◉";
+          if (!transcript) {
+            statusText.textContent = "Online";
+            showToast("आवाज़ समझ नहीं आई। फिर से बोलिए।");
+            return;
+          }
+          input.value = transcript;
+          statusText.textContent = "Processing...";
+          await sendMessage();
+        };
+        recognition.onerror = (event) => {
+          listening = false;
+          voiceButton.textContent = "◉";
+          const code = String(event.error || "unknown");
+          statusText.textContent = "Online";
+          if (code === "not-allowed" || code === "service-not-allowed") {
+            showToast("Microphone permission blocked. Chrome में microphone Allow करें.");
+          } else {
+            showToast("Voice error: " + code);
+          }
+        };
+        recognition.onend = () => {
+          if (!listening) {
+            voiceButton.textContent = "◉";
+            if (statusText.textContent === "Listening...") statusText.textContent = "Online";
+          }
+        };
+      }
     }
 
     async function startRecorderVoice(){
@@ -697,7 +742,21 @@
     function stopRecorderVoice(){if(mediaRecorder&&mediaRecorder.state!=="inactive"){try{mediaRecorder.stop();}catch(_){}}}
     
     function toggleVoice(){
-      // Reliable Android recorder flow: first tap starts, second tap stops and transcribes.
+      // Prefer the browser's native speech recognizer on Android/Chrome.
+      // This avoids the recorder/upload/transcription chain for normal voice commands.
+      if (recognition) {
+        if (listening) {
+          try { recognition.stop(); } catch (_) {}
+          return;
+        }
+        try {
+          statusText.textContent = "Starting microphone...";
+          recognition.start();
+          return;
+        } catch (error) {
+          console.warn("Native speech start failed; using recorder fallback.", error);
+        }
+      }
       if(listening){
         statusText.textContent="Stopping...";
         showToast("Recording stopped. Processing...");
