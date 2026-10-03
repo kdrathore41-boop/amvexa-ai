@@ -762,19 +762,21 @@
     function stopRecorderVoice(){if(mediaRecorder&&mediaRecorder.state!=="inactive"){try{mediaRecorder.stop();}catch(_){}}}
     
     function toggleVoice(){
-      // Prefer the browser's native speech recognizer on Android/Chrome.
-      // This avoids the recorder/upload/transcription chain for normal voice commands.
-      if (recognition) {
-        if (listening) {
-          try { recognition.stop(); } catch (_) {}
-          return;
-        }
+      // Always create a fresh native recognizer for each tap on Android Chrome.
+      if (listening && recognition) {
+        try { recognition.stop(); } catch (_) {}
+        return;
+      }
+      const freshRecognition = createSpeechRecognition();
+      if (freshRecognition) {
+        recognition = freshRecognition;
         try {
           statusText.textContent = "Starting microphone...";
           recognition.start();
           return;
         } catch (error) {
           console.warn("Native speech start failed; using recorder fallback.", error);
+          recognition = null;
         }
       }
       if(listening){
