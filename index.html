@@ -659,51 +659,71 @@
     function setupVoice() {
       voiceButton.disabled = false;
       voiceButton.title = "Tap once to speak";
+      // Recognition is created fresh for every command. Android Chrome can leave a
+      // completed SpeechRecognition instance in an unusable state if it is reused.
+      recognition = null;
+    }
+
+    function createSpeechRecognition() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        recognition = new SpeechRecognition();
-        recognition.lang = "hi-IN";
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-        recognition.onstart = () => {
-          listening = true;
-          voiceCommand = true;
-          voiceButton.textContent = "●";
-          statusText.textContent = "Listening...";
-          showToast("मैं सुन रहा हूँ…");
-        };
-        recognition.onresult = async (event) => {
-          const transcript = String(event.results?.[0]?.[0]?.transcript || "").trim();
-          listening = false;
-          voiceButton.textContent = "◉";
-          if (!transcript) {
-            statusText.textContent = "Online";
-            showToast("आवाज़ समझ नहीं आई। फिर से बोलिए।");
-            return;
-          }
-          input.value = transcript;
-          statusText.textContent = "Processing...";
-          await sendMessage();
-        };
-        recognition.onerror = (event) => {
-          listening = false;
-          voiceButton.textContent = "◉";
-          const code = String(event.error || "unknown");
+      if (!SpeechRecognition) return null;
+
+      const r = new SpeechRecognition();
+      r.lang = "hi-IN";
+      r.continuous = false;
+      r.interimResults = false;
+      r.maxAlternatives = 1;
+
+      r.onstart = () => {
+        listening = true;
+        voiceCommand = true;
+        voiceButton.textContent = "●";
+        statusText.textContent = "Listening...";
+        showToast("मैं सुन रहा हूँ…");
+      };
+
+      r.onresult = async (event) => {
+        const transcript = String(event.results?.[0]?.[0]?.transcript || "").trim();
+        listening = false;
+        voiceButton.textContent = "◉";
+        if (!transcript) {
           statusText.textContent = "Online";
-          if (code === "not-allowed" || code === "service-not-allowed") {
-            showToast("Microphone permission blocked. Chrome में microphone Allow करें.");
-          } else {
-            showToast("Voice error: " + code);
-          }
-        };
-        recognition.onend = () => {
-          if (!listening) {
-            voiceButton.textContent = "◉";
-            if (statusText.textContent === "Listening...") statusText.textContent = "Online";
-          }
-        };
-      }
+          showToast("आवाज़ समझ नहीं आई। फिर से बोलिए।");
+          return;
+        }
+        input.value = transcript;
+        statusText.textContent = "Processing...";
+        try {
+          await sendMessage();
+        } finally {
+          recognition = null;
+          listening = false;
+          voiceButton.textContent = "◉";
+          if (statusText.textContent === "Processing...") statusText.textContent = "Online";
+        }
+      };
+
+      r.onerror = (event) => {
+        listening = false;
+        voiceButton.textContent = "◉";
+        recognition = null;
+        const code = String(event.error || "unknown");
+        statusText.textContent = "Online";
+        if (code === "not-allowed" || code === "service-not-allowed") {
+          showToast("Microphone permission blocked. Chrome में microphone Allow करें.");
+        } else if (code !== "aborted") {
+          showToast("Voice error: " + code);
+        }
+      };
+
+      r.onend = () => {
+        listening = false;
+        voiceButton.textContent = "◉";
+        recognition = null;
+        if (statusText.textContent === "Listening...") statusText.textContent = "Online";
+      };
+
+      return r;
     }
 
     async function startRecorderVoice(){
