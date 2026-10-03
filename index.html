@@ -706,7 +706,7 @@
       r.onerror = (event) => {
         listening = false;
         voiceButton.textContent = "◉";
-        recognition = null;
+        if (recognition === r) recognition = null;
         const code = String(event.error || "unknown");
         statusText.textContent = "Online";
         if (code === "not-allowed" || code === "service-not-allowed") {
@@ -719,7 +719,9 @@
       r.onend = () => {
         listening = false;
         voiceButton.textContent = "◉";
-        recognition = null;
+        // Only clear the active recognizer if this is still the current session.
+        // This prevents an old onend event from killing the next voice session.
+        if (recognition === r) recognition = null;
         if (statusText.textContent === "Listening...") statusText.textContent = "Online";
       };
 
@@ -761,31 +763,50 @@
 
     function stopRecorderVoice(){if(mediaRecorder&&mediaRecorder.state!=="inactive"){try{mediaRecorder.stop();}catch(_){}}}
     
-    function toggleVoice(){
-      // Always create a fresh native recognizer for each tap on Android Chrome.
+    async function toggleVoice(){
+      // Android Chrome can keep the previous speech/audio session alive for a moment.
+      // Always finish the previous session, cancel TTS, then create a brand-new recognizer.
       if (listening && recognition) {
         try { recognition.stop(); } catch (_) {}
         return;
       }
-      const freshRecognition = createSpeechRecognition();
-      if (freshRecognition) {
-        recognition = freshRecognition;
-        try {
-          statusText.textContent = "Starting microphone...";
-          recognition.start();
-          return;
-        } catch (error) {
-          console.warn("Native speech start failed; using recorder fallback.", error);
-          recognition = null;
-        }
-      }
-      if(listening){
-        statusText.textContent="Stopping...";
-        showToast("Recording stopped. Processing...");
+
+      if (listening && mediaRecorder) {
         stopRecorderVoice();
         return;
       }
-      startRecorderVoice();
+
+      try {
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+        recognition = null;
+        listening = false;
+        voiceButton.disabled = true;
+        statusText.textContent = "Starting microphone...";
+
+        // Small gap prevents Android Chrome from treating the new start as a
+        // continuation of the previous audio session.
+        await new Promise(resolve => setTimeout(resolve, 180));
+
+        const freshRecognition = createSpeechRecognition();
+        if (!freshRecognition) {
+          voiceButton.disabled = false;
+          startRecorderVoice();
+          return;
+        }
+
+        recognition = freshRecognition;
+        try {
+          freshRecognition.start();
+        } catch (error) {
+          recognition = null;
+          console.warn("SpeechRecognition start failed; using recorder fallback.", error);
+          voiceButton.disabled = false;
+          startRecorderVoice();
+          return;
+        }
+      } finally {
+        voiceButton.disabled = false;
+      }
     }
     window.toggleVoice = toggleVoice;
 
