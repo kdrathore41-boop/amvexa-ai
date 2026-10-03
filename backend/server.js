@@ -509,6 +509,13 @@ function detectIntent(message) {
   if (/\b(play|listen|bajao|music|song|songs|gaana|gana|romantic|playlist|youtube)\b/.test(text)) return "music";
   if (/\b(research|search|latest|investigate|find out)\b/.test(text)) return "research";
   if (/\b(plan|schedule|organize)\b/.test(text) || /(aaj|aj|today).*(kaam|work|tasks?|todo|plan)/.test(text) || /(daily|din).*(plan|kaam|work)/.test(text)) return "planning";
+  // Context-continuation phrases are explicit assistant-mode requests.
+  // They should use the existing JARVIS state instead of falling into the
+  // generic conversation/question fallback.
+  if (/^(?:वो|उस|उस वाला|वही|वही वाला)\s+(?:काम|टास्क|काम को|टास्क को)?\s*(?:आगे|जारी|continue)?\s*(?:बढ़ाओ|बढ़ा(?:ओ|दो)|चलाओ|करो|कर दो|शुरू करो|जारी रखो|continue करो)?[.!?।\s]*$/i.test(text) ||
+      /^(?:वो|वही|उस वाला)\s+(?:काम|टास्क)\s+(?:आगे|जारी)\s*(?:बढ़ाओ|बढ़ा दो|करो|रखो|चलाओ)?[.!?।\s]*$/i.test(text) ||
+      /\b(?:continue|carry on|keep going)\b.*\b(?:that|the|same)\b.*\b(?:task|work)\b/i.test(text) ||
+      /\b(?:that|same)\s+(?:task|work)\s+(?:continue|proceed|move forward)\b/i.test(text)) return "assistant_mode";
   if (/\b(personal ai assistant|personal assistant|jarvis|friday|sirf chat|just chat|next action|agla action|next step)\b/i.test(text) && /\b(goal|assistant|kaam|work|analyze|analyse|analyze karo|kaise kaam|how should you work|next action|next step|sirf chat|just chat)\b/i.test(text)) return "assistant_mode";
   if (/^\s*(?:khud\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)\s*[.!?]*$/i.test(text)) return "autonomous_action";
   if (/\b(hello|hi|hey|namaste)\b/.test(text)) return "greeting";
