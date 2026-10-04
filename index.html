@@ -653,6 +653,8 @@
     let voiceCommand = false;
     let handsFree = false;
     let proactiveTimer = null;
+    let idleTalkTimer = null;
+    let idleTalkCooldown = 0;
     let voiceRestartTimer = null;
     let voiceRetryCount = 0;
 
@@ -672,6 +674,34 @@
         return false;
       }
     })();
+
+    function resetIdleTalkTimer() {
+      if (idleTalkTimer) clearTimeout(idleTalkTimer);
+      idleTalkTimer = setTimeout(runIdleTalk, 10000);
+    }
+
+    async function runIdleTalk() {
+      if (Date.now() < idleTalkCooldown) { resetIdleTalkTimer(); return; }
+      if (input.value.trim() || listening || sendButton.disabled || document.hidden) { resetIdleTalkTimer(); return; }
+      try {
+        const response = await fetch(API_URL + "/api/proactive", {cache:"no-store"});
+        const data = response.ok ? await response.json() : null;
+        const message = data?.shouldSpeak && data?.message
+          ? data.message
+          : "Kapil, main ready hoon. Aapke saath baat kar sakta hoon. Abhi koi active kaam nahi hai—chahein to hum aaj ka next step saath mein tay karte hain.";
+        addMessage("assistant", message);
+        notifyProactive(message, data?.signal?.type || "Amvexa");
+        speak(message);
+        idleTalkCooldown = Date.now() + 60000;
+      } catch (_) {
+        idleTalkCooldown = Date.now() + 30000;
+      } finally { resetIdleTalkTimer(); }
+    }
+
+    function setupIdleTalk() {
+      resetIdleTalkTimer();
+      ["pointerdown","keydown","input","touchstart"].forEach(name => document.addEventListener(name, resetIdleTalkTimer, {passive:true}));
+    }
 
     function setupVoice() {
       voiceButton.disabled = false;
@@ -1311,6 +1341,7 @@
     }
 
     setupVoice();
+    setupIdleTalk();
 
     // Voice debugging: disable the PWA service worker so cached JavaScript cannot mask the live voice flow.
     if ("serviceWorker" in navigator) {
