@@ -684,13 +684,17 @@
       if (Date.now() < idleTalkCooldown) { resetIdleTalkTimer(); return; }
       if (input.value.trim() || listening || sendButton.disabled || document.hidden) { resetIdleTalkTimer(); return; }
       try {
-        const response = await fetch(API_URL + "/api/proactive", {cache:"no-store"});
+        // The idle loop now asks Amvexa's brain what is worth saying,
+        // instead of repeating a fixed sentence.
+        const response = await fetch(API_URL + "/api/autonomous-talk", {cache:"no-store"});
         const data = response.ok ? await response.json() : null;
-        const message = data?.shouldSpeak && data?.message
-          ? data.message
-          : "Kapil, main ready hoon. Aapke saath baat kar sakta hoon. Abhi koi active kaam nahi hai—chahein to hum aaj ka next step saath mein tay karte hain.";
+        if (!data?.shouldSpeak || !data?.message) {
+          idleTalkCooldown = Date.now() + 30000;
+          return;
+        }
+        const message = data.message;
         addMessage("assistant", message);
-        notifyProactive(message, data?.signal?.type || "Amvexa");
+        notifyProactive(message, "Amvexa");
         speak(message);
         idleTalkCooldown = Date.now() + 60000;
       } catch (_) {
