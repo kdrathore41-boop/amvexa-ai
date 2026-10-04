@@ -656,9 +656,22 @@
     let voiceRestartTimer = null;
     let voiceRetryCount = 0;
 
-    // Wake the Render free instance as soon as the app opens. This runs in the
-    // background so the first real command does not pay the cold-start delay.
-    fetch(API_URL + "/api/health", { cache: "no-store" }).catch(() => {});
+    // Warm the Render instance once when the app opens. Commands reuse this
+    // promise so the first real request does not race the cold-start wake-up.
+    let backendReadyPromise = (async () => {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
+        const response = await fetch(API_URL + "/api/health", {
+          cache: "no-store",
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+        return response.ok;
+      } catch (_) {
+        return false;
+      }
+    })();
 
     function setupVoice() {
       voiceButton.disabled = false;
@@ -1066,8 +1079,15 @@
       statusText.textContent = "Thinking...";
 
       try {
+        // Do not race the first chat request against Render cold-start.
+        if (backendReadyPromise) {
+          statusText.textContent = "Connecting...";
+          await backendReadyPromise;
+          backendReadyPromise = null;
+        }
+
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        const timeoutId = setTimeout(() => controller.abort(), 45000);
 
         const response = await fetch(`${API_URL}/api/chat`, {
           method: "POST",
@@ -1151,7 +1171,7 @@
 
       } catch (error) {
         console.error("Amvexa connection error:", error);
-        if (error?.name === "AbortError") showToast("Backend response में 30 सेकंड से ज्यादा लग रहा है।");
+        if (error?.name === "AbortError") showToast("Backend response में ज्यादा समय लग रहा है।");
 
         addMessage(
           "assistant",
