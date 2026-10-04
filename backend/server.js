@@ -1275,6 +1275,11 @@ app.post("/api/chat", async (req,res)=>{
   if(!message)return res.status(400).json({success:false,error:"Message is required"});
   addConversation("user",message);
   const detectedIntent = detectIntent(message);
+  // A single user message can contain multiple independent intents.
+  // Split the common "remember my name + set a reminder" pattern so memory
+  // is stored and the reminder is created as two separate verified actions.
+  const compoundIdentityReminder = /(?:मेरा नाम|mera naam|my name)\\s+.+?(?:है|hai|is)\\b[\\s।.!?]*(?:इसे|ise)?\\s*(?:याद रखो|याद रखना|yaad rakho|yaad rakhna|remember)(?:\\s*[।.!?])?.*(?:remind|reminder|yaad\\s+dilana|याद\\s*दिलाना)/i.test(message)
+    || (/(?:मेरा नाम|mera naam|my name)\\s+.+?(?:है|hai|is)\\b/i.test(message) && /(?:याद रखो|याद रखना|yaad rakho|yaad rakhna|remember)/i.test(message) && /(?:\\d{1,2}(?::\\d{2})?\\s*(?:am|pm|बजे)|आज|कल|today|tomorrow)/i.test(message));
   // High-priority deterministic commands must bypass the generative AI fallback.
   const autonomousDirect = /^(?:khud\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)[.!?।\s]*$/i.test(message);
   const executeTaskDirect = /^(?:is\s+task\s+ko\s+khud\s+(?:execute|exicute)\s+karo|is\s+task\s+ko\s+(?:execute|exicute)\s+karo|task\s+ko\s+khud\s+(?:execute|exicute)\s+karo|execute\s+this\s+task|execute\s+the\s+task)[.!?।\s]*$/i.test(message);
@@ -1288,6 +1293,24 @@ app.post("/api/chat", async (req,res)=>{
   updatePersonalAlgorithm(message, plan.tool === "create_task" ? "planning" : plan.tool === "get_tasks" ? "tasks" : plan.tool === "complete_task" ? "task_complete" : plan.tool || detectedIntent);
   let toolResult=null; let verification=null; let responseText="";
   try{
+    if(compoundIdentityReminder){
+      const memoryContent=extractMemory(message);
+      const reminderMatch=message.match(/(?:आज|कल|परसों|today|tomorrow|aaj|kal|parso)[\\s\\S]*$/i);
+      const reminderMessage=reminderMatch ? reminderMatch[0] : message;
+      const reminderTitle=reminderMessage
+        .replace(/(?:remind\\s+me\\s+to|remind\\s+me|reminder|yaad\\s+dilana|yaad\\s+dila|याद\\s*दिलाना|याद\\s*दिलाओ|bhoolna\\s+mat|मत\\s*भूलना)/ig,"")
+        .replace(/^[\\s:,-]+/,"").trim();
+      const saved=await executeTool("save_memory",{content:memoryContent,kind:"saved-memory"});
+      const memoryVerification=verifyTool("save_memory",saved);
+      const task=await executeTool("create_task",{title:"Reminder: "+reminderTitle,priority:"high",dueAt:extractDueAt(reminderMessage)});
+      const taskVerification=verifyTool("create_task",task);
+      updatePersonalAlgorithm(message,"memory");
+      if(memoryVerification.verified && taskVerification.verified){
+        responseText=`Yaad rakh liya: "${saved.memory.content}".\\n\\nReminder set kar diya: "${task.task.title}". Priority: ${task.task.priority}. Due: ${task.task.dueAt ? new Date(task.task.dueAt).toLocaleString("en-IN",{timeZone:"Asia/Kolkata"}) : "not set"}.`;
+      }else{
+        responseText="Memory aur reminder dono ko verify karke complete karne mein dikkat hui.";
+      }
+    }
     // Deterministic goal execution must run before any AI/assistant-mode fallback.
     if(detectedIntent==="assistant_mode" && plan.tool!=="create_goal_and_plan" && plan.tool!=="continue_context"){
       const ai=await buildAssistantResponse(message,null,false);
