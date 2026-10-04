@@ -765,7 +765,7 @@ function localBrain(message, reason = "") {
   const next = nextAction();
   if (intent === "greeting") return "नमस्ते जी। Amvexa यहाँ है।";
   if (intent === "question") return "मैंने आपकी बात समझी। AI backend इस समय उपलब्ध नहीं है, लेकिन मेरा local brain और आपकी saved memory/tasks अभी भी active हैं।";
-  if (intent === "conversation") return "जी, मैं यहीं हूँ। Backend AI अभी उपलब्ध नहीं है, लेकिन हम बातचीत जारी रख सकते हैं।";
+  if (intent === "conversation") return "जी Kapil, ठीक है। अभी कोई active काम नहीं है। मैं यहीं हूँ—आप जब चाहें बात शुरू कर सकते हैं, और जरूरत पड़ते ही मैं अगला useful step पकड़ लूँगा।";
   if (intent === "planning") return next.type === "task"
     ? "आपके खुले काम में अगला action: " + next.title
     : "अभी कोई active task नहीं है। हम पहला concrete task तय कर सकते हैं।";
