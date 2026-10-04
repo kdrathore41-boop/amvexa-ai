@@ -1270,19 +1270,23 @@ app.post("/api/voice/transcribe", async (req,res)=>{
       return res.status(502).json({success:false,error:"Gemini audio upload failed: "+(fileData?.error?.message||upload.status),stage});
     }
     stage="transcription";
-    stage="transcription";
-    // Use Gemini's documented generateContent transcription path with the uploaded file URI.
-    const interaction=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-transcribe:generateContent",{
+    // Use Gemini's current Interactions API for transcription. The API returns
+    // the transcript in interaction.output_text, avoiding response-shape drift
+    // between transcription endpoints.
+    const interaction=await fetch("https://generativelanguage.googleapis.com/v1beta/interactions",{
       method:"POST",
       headers:{"Content-Type":"application/json","x-goog-api-key":apiKey},
       body:JSON.stringify({
-        contents:[{
-          parts:[{
-            fileData:{fileUri:fileData.file.uri,mimeType}
-          }]
+        model:"gemini-3.5-transcribe",
+        input:[{
+          type:"audio",
+          uri:fileData.file.uri,
+          mime_type:mimeType
         }],
-        generationConfig:{
-          audioTranscriptionConfig:{mode:"SMART"}
+        generation_config:{
+          transcription_config:{
+            mode:"smart"
+          }
         }
       }),
       signal:controller.signal
@@ -1293,11 +1297,16 @@ app.post("/api/voice/transcribe", async (req,res)=>{
     }
     stage="parse_response";
     const transcript=String(
+      data?.output_text ||
+      data?.output?.map(item=>item?.text||item?.content?.map?.(part=>part?.text||"").join(" ")||"").join(" ") ||
       data?.candidates?.[0]?.content?.parts?.map(p=>p?.text||"").join(" ") ||
       data?.text ||
       ""
     ).trim();
-    if(!transcript)return res.status(502).json({success:false,error:"Gemini returned no transcript",stage});
+    if(!transcript){
+      console.error("Gemini transcription returned no text:", JSON.stringify(data).slice(0,4000));
+      return res.status(502).json({success:false,error:"Gemini returned no transcript",stage});
+    }
     return res.json({success:true,transcript});
   }catch(error){
     const message=error?.name==="AbortError"?"Voice transcription timed out":(error?.message||"Voice transcription unavailable");
