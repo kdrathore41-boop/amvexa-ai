@@ -755,16 +755,44 @@
       };
 
       r.onerror = (event) => {
+        const code = String(event.error || "unknown");
+        const wasCurrent = recognition === r;
+
         listening = false;
         voiceButton.textContent = "◉";
-        if (recognition === r) recognition = null;
-        const code = String(event.error || "unknown");
+        if (wasCurrent) recognition = null;
         statusText.textContent = "Online";
+
         if (code === "not-allowed" || code === "service-not-allowed") {
           showToast("Microphone permission blocked. Chrome में microphone Allow करें.");
-        } else if (code !== "aborted") {
-          showToast("Voice error: " + code);
+          return;
         }
+
+        // Android Chrome can report a transient speech-service/network error
+        // after the first successful command. Retry with a brand-new
+        // SpeechRecognition instance before falling back to MediaRecorder.
+        if (wasCurrent && (code === "network" || code === "service-not-allowed") && voiceRetryCount < 1) {
+          voiceRetryCount += 1;
+          showToast("Voice reconnecting…");
+          setTimeout(() => {
+            if (recognition || listening || sendButton.disabled) return;
+            try {
+              const retry = createSpeechRecognition();
+              if (!retry) {
+                startRecorderVoice();
+                return;
+              }
+              recognition = retry;
+              retry.start();
+            } catch (_) {
+              recognition = null;
+              startRecorderVoice();
+            }
+          }, 450);
+          return;
+        }
+
+        if (code !== "aborted") showToast("Voice error: " + code);
       };
 
       r.onend = () => {
@@ -846,6 +874,7 @@
         }
 
         recognition = freshRecognition;
+        voiceRetryCount = 0;
         try {
           freshRecognition.start();
         } catch (error) {
