@@ -154,7 +154,7 @@ app.delete("/api/push/subscribe", (req, res) => {
   res.json({success:true});
 });
 
-app.use(express.static(ROOT));
+app.use(express.static(ROOT, { maxAge: 0, etag: false, setHeaders: (res) => { res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate"); } }));
 
 function readJson(file, fallback) {
   try {
