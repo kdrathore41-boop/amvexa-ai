@@ -860,7 +860,7 @@ ${JSON.stringify({situation:state.situation,nextAction:state.nextAction,activeTa
   if(!message){
     const next=state.nextAction;
     const lastUser=conversation.filter(t=>t.role==="user").slice(-1)[0]?.content||"";
-    if(next?.type==="task") message="Kapil, aapka agla useful kaam abhi ""+next.title+"" hai—chahein to main isi context se aage badh sakta hoon.";
+    if(next?.type==="task") message="Kapil, aapka agla useful kaam abhi \"" + next.title + "\" hai—chahein to main isi context se aage badh sakta hoon.";
     else if(next?.type==="goal") message="Kapil, aapka goal abhi active hai. Main uske next concrete step ko context mein rakhe hue hoon.";
     else if(/नहीं.*काम|koi.*kaam.*nahi|no.*work/i.test(lastUser)) message="ठीक है Kapil, अभी task नहीं है। थोड़ी normal baat karte hain—jo bhi aapke dimaag mein chal raha hai, wahi se shuru karte hain.";
     else message="Kapil, main yahin hoon. Abhi koi urgent kaam nahi hai, to main context ko dhyan mein rakhkar aapse naturally baat kar sakta hoon.";
