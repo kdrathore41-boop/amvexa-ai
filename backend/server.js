@@ -825,10 +825,11 @@ function assistantModeFallback() {
   return "Mera operating mode clear hai: context → priority → action → execution → verification → learning.\n\nAbhi next action: ek active goal register karna, taaki main aage usse track karke aapko baar-baar repeat na karwaun.";
 }
 
-app.use(async (req,res,next)=>{
+app.use((req,res,next)=>{
   if (!req.path.startsWith("/api/")) return next();
-  try { await persistenceReady; next(); }
-  catch (error) { res.status(503).json({success:false,error:"State store unavailable"}); }
+  // Never block API requests on durable-state initialization.
+  // Render/DB startup can be slow; in-memory state remains available.
+  next();
 });
 
 app.get("/api/health", (req,res)=>res.json({success:true,service:"amvexa-ai",version:VERSION,release:RELEASE,persistence:persistenceStatus}));
