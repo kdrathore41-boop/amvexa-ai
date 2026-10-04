@@ -658,22 +658,8 @@
     let voiceRestartTimer = null;
     let voiceRetryCount = 0;
 
-    // Warm the Render instance once when the app opens. Commands reuse this
-    // promise so the first real request does not race the cold-start wake-up.
-    let backendReadyPromise = (async () => {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 90000);
-        const response = await fetch(API_URL + "/api/health", {
-          cache: "no-store",
-          signal: controller.signal
-        });
-        clearTimeout(timeout);
-        return response.ok;
-      } catch (_) {
-        return false;
-      }
-    })();
+    // Do not run a separate health request before chat. On weak/mobile
+    // connections that extra request can compete with the first real command.
 
     function resetIdleTalkTimer() {
       if (idleTalkTimer) clearTimeout(idleTalkTimer);
@@ -1148,17 +1134,9 @@
       statusText.textContent = "Thinking...";
 
       try {
-        // Health warm-up is only a hint. Never block the real chat request
-        // when the warm-up failed on a weak/mobile connection.
-        if (backendReadyPromise) {
-          statusText.textContent = "Connecting...";
-          const warmed = await backendReadyPromise;
-          backendReadyPromise = null;
-          if (!warmed) {
-            statusText.textContent = "Reconnecting...";
-          }
-        }
-
+        // Send the real chat request directly. Do not block it behind
+        // a separate health/cold-start request.
+        statusText.textContent = "Connecting...";
         let response = null;
         let lastError = null;
 
@@ -1415,7 +1393,9 @@
     }
 
     setupVoice();
-    setupIdleTalk();
+    // Keep autonomous check-ins off while core voice/chat connectivity is being
+    // stabilized. Background AI requests can compete with user commands on weak
+    // mobile connections.
     registerAmvexaServiceWorker().then(() => {
       if (Notification.permission === "granted") registerBackgroundPush();
     });
