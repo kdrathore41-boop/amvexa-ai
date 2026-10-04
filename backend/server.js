@@ -1278,8 +1278,8 @@ app.post("/api/chat", async (req,res)=>{
   // A single user message can contain multiple independent intents.
   // Split the common "remember my name + set a reminder" pattern so memory
   // is stored and the reminder is created as two separate verified actions.
-  const compoundIdentityReminder = /(?:मेरा नाम|mera naam|my name)\\s+.+?(?:है|hai|is)\\b[\\s।.!?]*(?:इसे|ise)?\\s*(?:याद रखो|याद रखना|yaad rakho|yaad rakhna|remember)(?:\\s*[।.!?])?.*(?:remind|reminder|yaad\\s+dilana|याद\\s*दिलाना)/i.test(message)
-    || (/(?:मेरा नाम|mera naam|my name)\\s+.+?(?:है|hai|is)\\b/i.test(message) && /(?:याद रखो|याद रखना|yaad rakho|yaad rakhna|remember)/i.test(message) && /(?:\\d{1,2}(?::\\d{2})?\\s*(?:am|pm|बजे)|आज|कल|today|tomorrow)/i.test(message));
+  const compoundIdentityReminder = /(?:मेरा नाम|mera naam|my name)\s+.+?(?:है|hai|is)\b[\s।.!?]*(?:इसे|ise)?\s*(?:याद रखो|याद रखना|yaad rakho|yaad rakhna|remember)(?:\s*[।.!?])?.*(?:remind|reminder|yaad\s+dilana|याद\s*दिलाना)/i.test(message)
+    || (/(?:मेरा नाम|mera naam|my name)\s+.+?(?:है|hai|is)\b/i.test(message) && /(?:याद रखो|याद रखना|yaad rakho|yaad rakhna|remember)/i.test(message) && /(?:\d{1,2}(?::\d{2})?\s*(?:am|pm|बजे)|आज|कल|today|tomorrow)/i.test(message));
   // High-priority deterministic commands must bypass the generative AI fallback.
   const autonomousDirect = /^(?:khud\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)[.!?।\s]*$/i.test(message);
   const executeTaskDirect = /^(?:is\s+task\s+ko\s+khud\s+(?:execute|exicute)\s+karo|is\s+task\s+ko\s+(?:execute|exicute)\s+karo|task\s+ko\s+khud\s+(?:execute|exicute)\s+karo|execute\s+this\s+task|execute\s+the\s+task)[.!?।\s]*$/i.test(message);
