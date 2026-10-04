@@ -525,9 +525,18 @@ function detectIntent(message) {
 
 function extractMemory(message) {
   const text = String(message || "").trim();
-  const identity = text.match(/^\s*(?:mera naam|my name|मेरा नाम)\s+(.+?)(?=\s+(?:hai|is|h|है)(?=\s|[।.!?,]|$)|\s+(?:yaad rakh(?:o|na)?|याद रख(?:ो|ना|िए)?)(?=\s|[।.!?,]|$)|[।.!?]|$)/i);
-  if (identity) return "User ka naam " + identity[1].trim().replace(/[।.!?]+$/,"");
-  return text.replace(/^\s*(remember|save|store|note|yaad rakh(?:o|na)?|याद रख(?:ो|ना|िए)?)\s*(this|that|ye|yah|ki|यह|ये|कि)?\s*[:,-]?\s*/i, "").trim();
+
+  // Store common personal facts in a clean canonical form.
+  const name = text.match(/^\s*(?:mera naam|my name|मेरा नाम)\s+(.+?)(?=\s+(?:hai|is|h|है)\b|\s+(?:yaad rakh(?:o|na)?|याद रख(?:ो|ना|िए)?)\b|[।.!?]|$)/i);
+  if (name) return "User ka naam " + name[1].trim().replace(/[।.!?]+$/,"");
+
+  const son = text.match(/^\s*(?:mere bete ka naam|my son's name|my son(?:s)? name|मेरे बेटे का नाम)\s+(.+?)(?=\s+(?:hai|is|है)\b|\s+(?:yaad rakh(?:o|na)?|याद रख(?:ो|ना|िए)?)\b|[।.!?]|$)/i);
+  if (son) return "Mere bete ka naam " + son[1].trim().replace(/[।.!?]+$/,"");
+
+  return text
+    .replace(/^\s*(remember|save|store|note|yaad rakh(?:o|na)?|याद रख(?:ो|ना|िए)?)\s*(this|that|ye|yah|ki|यह|ये|कि)?\s*[:,-]?\s*/i, "")
+    .replace(/\s+(?:yaad rakh(?:o|na)?|याद रख(?:ो|ना|िए)?)\s*[।.!?]*$/i, "")
+    .trim();
 }
 
 function extractDueAt(message) {
@@ -1332,7 +1341,16 @@ app.post("/api/chat", async (req,res)=>{
 
     }else if(plan.tool==="save_memory"&&verification?.verified){responseText=`Theek hai, maine yaad rakh liya: "${toolResult.memory.content}"`;
     }else if(plan.tool==="recall_memory"){
-      const found=toolResult?.memories||[]; const name=found.find(m=>/^User ka naam\s+.+$/i.test(m.content))?.content.match(/^User ka naam\s+(.+)$/i)?.[1]?.trim(); responseText=(/\b(mera naam|my name|what is my name|what's my name)\b/i.test(message)&&name)?`Aapka naam ${name}.`:found.length?found.map((m,i)=>`${i+1}. ${m.content}`).join("\n"):"Abhi mujhe matching memory nahi mili.";
+      const found=toolResult?.memories||[];
+      const name=found.find(m=>/^User ka naam\s+.+$/i.test(m.content))?.content.match(/^User ka naam\s+(.+)$/i)?.[1]?.trim();
+      const son=found.find(m=>/^Mere bete ka naam\s+.+$/i.test(m.content))?.content.match(/^Mere bete ka naam\s+(.+)$/i)?.[1]?.trim();
+      if (/\b(mera naam|my name|what is my name|what's my name)\b/i.test(message) && name) {
+        responseText=`Aapka naam ${name}.`;
+      } else if (/(?:mere bete|my son|बेटे का नाम)/i.test(message) && son) {
+        responseText=`Aapke bete ka naam ${son}.`;
+      } else {
+        responseText=found.length?found.map((m,i)=>`${i+1}. ${m.content}`).join("\n"):"Abhi mujhe matching memory nahi mili.";
+      }
     }else if(plan.tool==="web_search"){responseText=formatWebResponse(toolResult);}
     else if(plan.tool==="music_search"&&verification?.verified){responseText="Done — your music playlist is ready.";}
     else if(plan.tool==="create_task"&&verification?.verified){
