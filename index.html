@@ -835,16 +835,18 @@
     function stopRecorderVoice(){if(mediaRecorder&&mediaRecorder.state!=="inactive"){try{mediaRecorder.stop();}catch(_){}}}
     
     async function toggleVoice(){
-      // Android Chrome can keep the previous speech/audio session alive for a moment.
-      // Always finish the previous session, cancel TTS, then create a brand-new recognizer.
-      if (listening && recognition) {
-        try { recognition.stop(); } catch (_) {}
-        return;
-      }
-
+      // Use MediaRecorder directly on Android instead of browser SpeechRecognition.
+      // Chrome's SpeechRecognition can fail with a service-level "network" error
+      // even when Amvexa's own backend is reachable.
       if (listening && mediaRecorder) {
         stopRecorderVoice();
         return;
+      }
+
+      if (listening && recognition) {
+        try { recognition.stop(); } catch (_) {}
+        recognition = null;
+        listening = false;
       }
 
       try {
@@ -853,31 +855,14 @@
         listening = false;
         voiceButton.disabled = true;
         statusText.textContent = "Starting microphone...";
-
-        // Small gap prevents Android Chrome from treating the new start as a
-        // continuation of the previous audio session.
-        await new Promise(resolve => setTimeout(resolve, 180));
-
-        const freshRecognition = createSpeechRecognition();
-        if (!freshRecognition) {
-          voiceButton.disabled = false;
-          startRecorderVoice();
-          return;
-        }
-
-        recognition = freshRecognition;
-        voiceRetryCount = 0;
-        try {
-          freshRecognition.start();
-        } catch (error) {
-          recognition = null;
-          console.warn("SpeechRecognition start failed; using recorder fallback.", error);
-          voiceButton.disabled = false;
-          startRecorderVoice();
-          return;
-        }
-      } finally {
+        await new Promise(resolve => setTimeout(resolve, 120));
         voiceButton.disabled = false;
+        await startRecorderVoice();
+      } catch (error) {
+        voiceButton.disabled = false;
+        listening = false;
+        statusText.textContent = "Online";
+        showToast("MIC ERROR: " + String(error?.message || "Microphone unavailable"));
       }
     }
     window.toggleVoice = toggleVoice;
