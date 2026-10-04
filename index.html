@@ -656,6 +656,10 @@
     let voiceRestartTimer = null;
     let voiceRetryCount = 0;
 
+    // Wake the Render free instance as soon as the app opens. This runs in the
+    // background so the first real command does not pay the cold-start delay.
+    fetch(API_URL + "/api/health", { cache: "no-store" }).catch(() => {});
+
     function setupVoice() {
       voiceButton.disabled = false;
       voiceButton.title = "Tap once to speak";
@@ -1063,7 +1067,7 @@
 
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
 
         const response = await fetch(`${API_URL}/api/chat`, {
           method: "POST",
