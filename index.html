@@ -637,7 +637,7 @@
   </div>
 
   <script>
-    const API_URL = "https://amvexa-ai.onrender.com";
+    const API_URL = window.location.origin;
 
     const input = document.getElementById("commandInput");
     const toast = document.getElementById("toast");
@@ -744,10 +744,16 @@
         }
         input.value = transcript;
         statusText.textContent = "Processing...";
+        // Stop the browser recognition session immediately after receiving the
+        // final transcript. Do not leave Android Chrome's audio session alive
+        // while /api/chat is processing.
+        if (recognition === r) {
+          try { r.stop(); } catch (_) {}
+          recognition = null;
+        }
         try {
           await sendMessage();
         } finally {
-          recognition = null;
           listening = false;
           voiceButton.textContent = "◉";
           if (statusText.textContent === "Processing...") statusText.textContent = "Online";
@@ -771,7 +777,7 @@
         // Android Chrome can report a transient speech-service/network error
         // after the first successful command. Retry with a brand-new
         // SpeechRecognition instance before falling back to MediaRecorder.
-        if (wasCurrent && (code === "network" || code === "service-not-allowed") && voiceRetryCount < 1) {
+        if (wasCurrent && code === "network" && voiceRetryCount < 1) {
           voiceRetryCount += 1;
           showToast("Voice reconnecting…");
           setTimeout(() => {
@@ -796,10 +802,10 @@
       };
 
       r.onend = () => {
+        // onend can arrive after onresult has already handed the command to
+        // sendMessage(). Never overwrite Processing/Thinking/Connecting state.
         listening = false;
         voiceButton.textContent = "◉";
-        // Only clear the active recognizer if this is still the current session.
-        // This prevents an old onend event from killing the next voice session.
         if (recognition === r) recognition = null;
         if (statusText.textContent === "Listening...") statusText.textContent = "Online";
       };
