@@ -924,7 +924,8 @@
       }
     }
 
-    window.toggleVoice = toggleVoice;\n    window.addEventListener('pagehide', releaseVoiceStream);
+    window.toggleVoice = toggleVoice;
+    window.addEventListener('pagehide', releaseVoiceStream);
 
     function speak(text) {
       if (!speakReplies || !("speechSynthesis" in window)) return;
