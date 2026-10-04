@@ -297,8 +297,18 @@ function logAction(tool, args, result) {
   writeJson(FILES.audit, audit);
 }
 
+function normalizePersonalMemory(content) {
+  let value = String(content || "").trim();
+  value = value.replace(/^User ka naam\\s+(.+?)(?:\\s+(?:है|hai|is|h))?(?:\\s+(?:याद\\s*रख(?:ो|ना|िए)|yaad\\s*rakh(?:o|na)?))?\\s*[।.!?]*$/i,
+    (_, name) => "User ka naam " + name.trim());
+  value = value.replace(/^Mere bete ka naam\\s+(.+?)(?:\\s+(?:है|hai|is|h))?(?:\\s+(?:याद\\s*रख(?:ो|ना|िए)|yaad\\s*rakh(?:o|na)?))?\\s*[।.!?]*$/i,
+    (_, name) => "Mere bete ka naam " + name.trim());
+  return value;
+}
+
 function remember(content, kind = "saved-memory") {
-  const item = { id: `mem_${Date.now()}`, role: "memory", content: String(content), kind, importance: kind === "preference" ? 6 : 5, at: new Date().toISOString() };
+  const normalized = normalizePersonalMemory(content);
+  const item = { id: `mem_${Date.now()}`, role: "memory", content: normalized, kind, importance: kind === "preference" ? 6 : 5, at: new Date().toISOString() };
   memory.push(item);
   memory = memory.slice(-MAX.memory);
   writeJson(FILES.memory, memory);
@@ -322,7 +332,10 @@ function memorySearch(query, limit = 8) {
     const text = String(item.content || "").toLowerCase() + " " + String(item.kind || "").toLowerCase();
     const score = terms.reduce((n, term) => n + (text.includes(term) ? 1 : 0), 0);
     return { item, score };
-  }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, limit).map(x => x.item);
+  }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, limit).map(x => ({
+    ...x.item,
+    content: normalizePersonalMemory(x.item.content)
+  }));
 }
 
 function recallContext(query) {
