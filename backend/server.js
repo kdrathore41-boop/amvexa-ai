@@ -901,6 +901,144 @@ app.get("/api/proactive",(req,res)=>{
   res.json({success:true,shouldSpeak,message:signal?.message||"",signal,nextAction:next,decision,checkedAt,context:{openTasks:open.length,highPriorityTasks:high.length,activeGoals:activeGoals.length,dueSoonTasks:dueSoonTasks.length,activeGoal:activeGoal?{id:activeGoal.id,title:activeGoal.title||activeGoal.name||"active goal",taskCount:goalTaskCount,openTaskCount:goalOpenTaskCount}:null,checkedAt}});
 });
 
+// ── Cognitive Brain Layer ──────────────────────────────────────────────────
+// Human-inspired cognitive architecture layered on top of the AI model.
+// This is a simulation of cognitive processes, not a claim of consciousness.
+const COGNITIVE_VERSION = 1;
+const cognitiveBrain = {
+  version: COGNITIVE_VERSION,
+  attention: null,
+  workingMemory: [],
+  lastObservationAt: null,
+  lastDecisionAt: null,
+  lastLearningAt: null,
+  signalFingerprint: null,
+  signalCount: 0,
+  learningEvents: 0
+};
+
+function cognitiveNow() {
+  return new Date().toISOString();
+}
+
+function cognitiveRecentContext(limit=8) {
+  return conversation.slice(-limit).map(t => ({
+    role:t.role,
+    content:String(t.content||"").slice(0,500),
+    at:t.at
+  }));
+}
+
+function cognitiveObserve() {
+  const now=Date.now();
+  const open=tasks.filter(t=>t.status!=="done");
+  const activeGoals=goals.filter(g=>g.status!=="done");
+  const overdue=open.filter(t=>t.dueAt && Date.parse(t.dueAt)<=now);
+  const dueSoon=open.filter(t=>{
+    if(!t.dueAt) return false;
+    const ms=Date.parse(t.dueAt)-now;
+    return Number.isFinite(ms) && ms>0 && ms<=2*60*60*1000;
+  });
+  const high=open.filter(t=>t.priority==="high");
+  const recentUser=conversation.filter(t=>t.role==="user").slice(-3);
+  const recentAssistant=conversation.filter(t=>t.role==="assistant").slice(-2);
+  const jarvis=context?.jarvis||{};
+  return {
+    at:cognitiveNow(),
+    environment:{
+      openTasks:open.length,
+      highPriority:high.length,
+      overdue:overdue.length,
+      dueSoon:dueSoon.length,
+      activeGoals:activeGoals.length
+    },
+    focus:{
+      next:nextAction(),
+      activeGoal:activeGoals[0]||null,
+      jarvis
+    },
+    recent:{
+      user:recentUser,
+      assistant:recentAssistant
+    },
+    memoryCount:memory.length,
+    knowledgeCount:knowledge.length,
+    learned:intelligenceSnapshot()
+  };
+}
+
+function cognitiveAttend(observation) {
+  const candidates=[];
+  const add=(type,score,target,reason,data={})=>candidates.push({type,score,target,reason,...data});
+  const next=observation.focus.next;
+  if(observation.environment.overdue) add("deadline",100,next?.title||"overdue task","deadline passed",{urgency:"critical"});
+  if(observation.environment.dueSoon) add("deadline_soon",90,next?.title||"due soon task","deadline approaching",{urgency:"high"});
+  if(observation.environment.highPriority) add("priority",75,next?.title||"high-priority task","important unfinished work",{urgency:"high"});
+  if(observation.environment.activeGoals) add("goal",55,observation.focus.activeGoal?.title||"active goal","goal needs progress",{urgency:"normal"});
+  if(observation.environment.openTasks) add("next_action",40,next?.title||"next action","open work available",{urgency:"normal"});
+  const lastUser=observation.recent.user.at(-1)?.content||"";
+  if(lastUser && /(help|madad|problem|pareshan|confused|samajh|urgent|jaldi|tension)/i.test(lastUser)){
+    add("emotional_context",85,lastUser,"recent user context needs attention",{urgency:"high"});
+  }
+  candidates.sort((a,b)=>b.score-a.score);
+  return candidates[0]||{type:"idle",score:0,target:null,reason:"nothing currently requires attention",urgency:"low"};
+}
+
+function cognitiveDecide(observation,attention) {
+  const fingerprint=[attention.type,attention.target||"",observation.environment.openTasks,observation.environment.overdue,observation.environment.dueSoon].join("|");
+  const recentSame=cognitiveBrain.signalFingerprint===fingerprint;
+  const quietWindow=attention.type==="idle" ? true : false;
+  let action="observe";
+  let speak=false;
+  if(!quietWindow){
+    action=attention.type==="deadline"||attention.type==="deadline_soon" ? "proactive_alert"
+      : attention.type==="emotional_context" ? "contextual_support"
+      : attention.type==="priority"||attention.type==="next_action"||attention.type==="goal" ? "proactive_guidance"
+      : "observe";
+    speak=!recentSame && attention.score>=55;
+  }
+  return {action,speak,fingerprint,reason:attention.reason};
+}
+
+function cognitiveLearn(event) {
+  cognitiveBrain.learningEvents++;
+  cognitiveBrain.lastLearningAt=cognitiveNow();
+  const key=event?.type||"unknown";
+  const existing=(intelligence.patterns||[]).find(p=>p.key==="cognitive_"+key);
+  if(existing){
+    existing.count=(existing.count||0)+1;
+    existing.confidence=Math.min(0.95,0.25+Math.min(0.70,existing.count*0.05));
+    existing.lastSeen=cognitiveBrain.lastLearningAt;
+  }else{
+    intelligence.patterns.push({key:"cognitive_"+key,count:1,confidence:0.25,firstSeen:cognitiveBrain.lastLearningAt,lastSeen:cognitiveBrain.lastLearningAt});
+  }
+  intelligence.patterns=intelligence.patterns.slice(-MAX.patterns);
+  writeJson(FILES.intelligence,intelligence);
+}
+
+function runCognitiveCycle() {
+  const observation=cognitiveObserve();
+  const attention=cognitiveAttend(observation);
+  const decision=cognitiveDecide(observation,attention);
+  cognitiveBrain.attention=attention;
+  cognitiveBrain.workingMemory=cognitiveRecentContext();
+  cognitiveBrain.lastObservationAt=observation.at;
+  cognitiveBrain.lastDecisionAt=observation.at;
+  cognitiveBrain.signalFingerprint=decision.fingerprint;
+  cognitiveBrain.signalCount++;
+  context.cognitiveBrain={
+    version:COGNITIVE_VERSION,
+    attention,
+    decision,
+    workingMemory:cognitiveBrain.workingMemory,
+    lastObservationAt:cognitiveBrain.lastObservationAt,
+    lastDecisionAt:cognitiveBrain.lastDecisionAt,
+    learningEvents:cognitiveBrain.learningEvents
+  };
+  writeJson(FILES.context,context);
+  return {observation,attention,decision};
+}
+
 // ── Always-On Brain ───────────────────────────────────────────────────────
 // Server-side observation; no microphone is kept open.
 let brainBusy = false;
@@ -932,10 +1070,13 @@ async function runBrainCycle() {
   brainBusy = true;
   brainLastRunAt = new Date().toISOString();
   try {
+    const cognition=runCognitiveCycle();
     const open=tasks.filter(t=>t.status!=="done");
     const high=open.filter(t=>t.priority==="high");
     const next=nextAction();
     const now=Date.now();
+    const cognitiveAttention=cognition.attention;
+    const cognitiveDecision=cognition.decision;
     const dueSoon=next?.dueAt && !next.overdue && (() => {
       const ms=Date.parse(next.dueAt)-now;
       return Number.isFinite(ms) && ms>0 && ms<=60*60*1000;
@@ -949,10 +1090,19 @@ async function runBrainCycle() {
       const goal=goals.find(g=>g.status!=="done");
       if(goal) signal={type:"goal_followup",priority:"normal",reason:"active_goal",target:goal.title||goal.name||"active goal"};
     }
+    if(cognitiveAttention.type!=="idle" && cognitiveDecision.action!=="observe"){
+      signal = signal || {
+        type:cognitiveAttention.type,
+        priority:cognitiveAttention.urgency==="critical"||cognitiveAttention.urgency==="high"?"high":"normal",
+        reason:cognitiveAttention.reason,
+        target:cognitiveAttention.target
+      };
+    }
     brainLastSignal=signal;
     if(!signal) return;
     const last=brainLastTalkAt?Date.parse(brainLastTalkAt):0;
     if(last && now-last<BRAIN_TALK_COOLDOWN_MS) return;
+    if(!cognitiveDecision.speak && cognitiveAttention.type!=="deadline" && cognitiveAttention.type!=="deadline_soon") return;
 
     const state=jarvisContext();
     const prompt=`You are Amvexa, Kapil's proactive personal AI assistant.
@@ -972,6 +1122,7 @@ State: ${JSON.stringify({nextAction:state.nextAction,situation:state.situation,a
       else message="Kapil, aapka goal active hai: \"" + signal.target + "\".";
     }
     addConversation("assistant",message);
+    cognitiveLearn({type:cognitiveAttention.type,target:cognitiveAttention.target});
     brainLastTalkAt=new Date().toISOString();
     await sendBrainPush(message,signal);
     context.jarvis={...(context.jarvis||{}),backgroundBrain:{status:"spoken",at:brainLastTalkAt,signal:signal.type,target:signal.target,message}};
@@ -981,7 +1132,7 @@ State: ${JSON.stringify({nextAction:state.nextAction,situation:state.situation,a
   } finally { brainBusy=false; }
 }
 
-app.get("/api/brain/status",(req,res)=>res.json({success:true,brain:brainState()}));
+app.get("/api/brain/status",(req,res)=>res.json({success:true,brain:brainState(),cognitive:{version:COGNITIVE_VERSION,attention:cognitiveBrain.attention,workingMemory:cognitiveBrain.workingMemory,lastObservationAt:cognitiveBrain.lastObservationAt,lastDecisionAt:cognitiveBrain.lastDecisionAt,learningEvents:cognitiveBrain.learningEvents}}));
 
 app.post("/api/jarvis/execute", async (req,res)=>{
   const state=jarvisContext();
