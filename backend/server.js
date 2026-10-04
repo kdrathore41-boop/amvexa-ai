@@ -306,9 +306,20 @@ function remember(content, kind = "saved-memory") {
 }
 
 function memorySearch(query, limit = 8) {
-  const terms = String(query || "").toLowerCase().split(/\s+/).filter(x => x.length > 1);
+  const raw = String(query || "").toLowerCase().trim();
+  // Map common Hindi/Hinglish recall questions to the canonical memory labels
+  // used by extractMemory(). Token matching alone cannot match "मेरा नाम क्या है"
+  // against "User ka naam Kapil Rathore".
+  const canonicalTerms = [];
+  if (/\b(mera naam|my name|what is my name|what's my name|who am i)\b/i.test(raw) || /मेरा नाम/.test(raw)) {
+    canonicalTerms.push("user ka naam", "mera naam");
+  }
+  if (/\b(mere bete|my son|son's name)\b/i.test(raw) || /मेरे बेटे|बेटे का नाम/.test(raw)) {
+    canonicalTerms.push("mere bete ka naam", "my son");
+  }
+  const terms = [...canonicalTerms, ...raw.split(/\s+/).filter(x => x.length > 1)].map(x => x.toLowerCase());
   return memory.map(item => {
-    const text = `${item.content} ${item.kind}`.toLowerCase();
+    const text = String(item.content || "").toLowerCase() + " " + String(item.kind || "").toLowerCase();
     const score = terms.reduce((n, term) => n + (text.includes(term) ? 1 : 0), 0);
     return { item, score };
   }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, limit).map(x => x.item);
@@ -490,7 +501,9 @@ function detectIntent(message) {
       /^\s*(?:आज|aaj|today)\s+(?:मुझे|mujhe)\s+(?:क्या|kya)\s+(?:करना|karna)\s+(?:है|hai)\s*[?।.!]*$/i.test(text)) return "tasks";
   // Explicit assistant-mode requests take priority over every other intent.\n  // Recall questions must be checked before memory-save phrases so
   // "Mera naam kya hai?" is never treated as a request to save "kya".
-  if (/^\s*(?:मेरा नाम|mera naam|my name)\s+(?:क्या(?:\s+है)?|kya(?:\s+hai)?|what(?:\s+is)?)\s*[?।.!]*$/i.test(text) || /\b(what do you remember|what do you know about me|what is my name|what's my name|who am i|recall|yaad hai|mere baare mein|mere baare me)\b/.test(text)) return "recall";
+  if (/^\s*(?:मेरा नाम|mera naam|my name)\s+(?:क्या(?:\s+है)?|kya(?:\s+hai)?|what(?:\s+is)?)\s*[?।.!]*$/i.test(text) ||
+      /^\s*(?:मेरे बेटे का नाम|mere bete ka naam|my son(?:'s)? name)\s+(?:क्या(?:\s+है)?|kya(?:\s+hai)?|what(?:\s+is)?)\s*[?।.!]*$/i.test(text) ||
+      /\b(what do you remember|what do you know about me|what is my name|what's my name|who am i|recall|yaad hai|mere baare mein|mere baare me)\b/.test(text)) return "recall";
   // A reminder with a concrete date/time must always win over generic memory language.
   // Example: “आज शाम 7 बजे ... याद रखना” => reminder, not memory.
   const hasDateOrDay = /\b(aaj|today|kal|tomorrow|parso|day after tomorrow)\b|आज|कल|परसों/.test(text);
