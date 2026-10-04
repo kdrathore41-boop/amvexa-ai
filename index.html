@@ -800,36 +800,101 @@
     }
 
     async function startRecorderVoice(){
-      if(listening){stopRecorderVoice();return;}
-      statusText.textContent="Starting microphone...";
-      showToast("Microphone starting...");
-      try{
-        if(!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone access is unavailable in this browser.");
-        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-        const types=["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg"];
-        const mimeType=types.find(t=>MediaRecorder.isTypeSupported(t))||"";
-        mediaRecorder=new MediaRecorder(stream,mimeType?{mimeType}:undefined); recordedChunks=[];
-        mediaRecorder.ondataavailable=e=>{if(e.data?.size)recordedChunks.push(e.data);};
-        mediaRecorder.onstop=async()=>{
-          stream.getTracks().forEach(t=>t.stop());
-          const blob=new Blob(recordedChunks,{type:mediaRecorder.mimeType||mimeType||"audio/webm"});
-          listening=false;voiceButton.textContent="◉";statusText.textContent="Transcribing...";
-          if(!blob.size){statusText.textContent="Online";showToast("No audio captured.");return;}
-          try{
-            const base64=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(",")[1]||"");r.onerror=reject;r.readAsDataURL(blob);});
-            const response=await fetch(API_URL+"/api/voice/transcribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({audio:base64,mimeType:blob.type||"audio/webm"})});
-            const data=await response.json().catch(()=>({}));
-            if(!response.ok||!data.success||!data.transcript)throw new Error(data.error||"Voice transcription failed");
-            input.value=data.transcript.trim();voiceCommand=true;handsFree=false;await sendMessage();
-          }catch(error){
-        const message=String(error?.message||"Voice input failed.");
-        console.error("Amvexa voice input error:",message);
-        statusText.textContent=message;
-        showToast(message);
+      // Always create a completely fresh recorder session. Android Chrome can
+      // leave a stopped MediaRecorder object around after the first command.
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        try { mediaRecorder.stop(); } catch (_) {}
+        return;
       }
+      mediaRecorder = null;
+      recordedChunks = [];
+      statusText.textContent = "Starting microphone...";
+      showToast("Microphone starting...");
+
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone access is unavailable in this browser.");
+        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+        const types = ["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg"];
+        const mimeType = types.find(t => MediaRecorder.isTypeSupported(t)) || "";
+        const recorder = new MediaRecorder(stream, mimeType ? {mimeType} : undefined);
+        mediaRecorder = recorder;
+        recordedChunks = [];
+
+        recorder.ondataavailable = event => {
+          if (event.data?.size) recordedChunks.push(event.data);
         };
-        mediaRecorder.start(250);listening=true;voiceButton.textContent="●";statusText.textContent="Listening...";showToast("I'm listening... Tap the mic again when you're done.");
-      }catch(error){listening=false;statusText.textContent="Online";voiceButton.textContent="◉";showToast("MIC ERROR: "+String(error?.name||"Unknown")+" — "+String(error?.message||"No microphone access"));}
+
+        recorder.onstop = async () => {
+          stream.getTracks().forEach(track => track.stop());
+          if (mediaRecorder === recorder) mediaRecorder = null;
+          const blob = new Blob(recordedChunks, {type: recorder.mimeType || mimeType || "audio/webm"});
+          listening = false;
+          voiceButton.disabled = false;
+          voiceButton.textContent = "◉";
+          statusText.textContent = "Transcribing...";
+
+          if (!blob.size) {
+            statusText.textContent = "Online";
+            showToast("No audio captured.");
+            return;
+          }
+
+          try {
+            const base64 = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            const response = await fetch(API_URL + "/api/voice/transcribe", {
+              method:"POST",
+              headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({audio:base64,mimeType:blob.type||"audio/webm"})
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success || !data.transcript) {
+              throw new Error(data.error || "Voice transcription failed");
+            }
+            input.value = data.transcript.trim();
+            voiceCommand = true;
+            handsFree = false;
+            await sendMessage();
+          } catch (error) {
+            const message = String(error?.message || "Voice input failed.");
+            console.error("Amvexa voice input error:", message);
+            statusText.textContent = "Online";
+            showToast(message);
+          } finally {
+            voiceButton.disabled = false;
+            listening = false;
+            voiceButton.textContent = "◉";
+          }
+        };
+
+        recorder.onerror = () => {
+          stream.getTracks().forEach(track => track.stop());
+          if (mediaRecorder === recorder) mediaRecorder = null;
+          listening = false;
+          voiceButton.disabled = false;
+          voiceButton.textContent = "◉";
+          statusText.textContent = "Online";
+          showToast("Microphone recording error. Please try again.");
+        };
+
+        recorder.start(250);
+        listening = true;
+        voiceButton.disabled = false;
+        voiceButton.textContent = "●";
+        statusText.textContent = "Listening...";
+        showToast("I'm listening... Tap the mic again when you're done.");
+      } catch (error) {
+        listening = false;
+        mediaRecorder = null;
+        voiceButton.disabled = false;
+        statusText.textContent = "Online";
+        voiceButton.textContent = "◉";
+        showToast("MIC ERROR: " + String(error?.name || "Unknown") + " — " + String(error?.message || "No microphone access"));
+      }
     }
 
     function stopRecorderVoice(){if(mediaRecorder&&mediaRecorder.state!=="inactive"){try{mediaRecorder.stop();}catch(_){}}}
