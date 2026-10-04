@@ -1317,7 +1317,9 @@ app.post("/api/chat", async (req,res)=>{
         .replace(/^[\s:,-]+/,"").trim();
             const saved=await executeTool("save_memory",{content:memoryContent,kind:"saved-memory"});
       const memoryVerification=verifyTool("save_memory",saved);
-      const dueAt=extractDueAt(reminderMessage);\n      tasks = tasks.filter(t => !(t.status !== "done" && /^Reminder:\s*मेरा नाम\s+/i.test(String(t.title || ""))));\n      const task=await executeTool("create_task",{title:"Reminder: "+reminderTitle,priority:"high",dueAt});
+      const dueAt=extractDueAt(reminderMessage);
+      tasks = tasks.filter(t => !(t.status !== "done" && /^Reminder:\s*मेरा नाम\s+/i.test(String(t.title || ""))));
+      const task=await executeTool("create_task",{title:"Reminder: "+reminderTitle,priority:"high",dueAt});
       const taskVerification=verifyTool("create_task",task);
       updatePersonalAlgorithm(message,"memory");
       if(memoryVerification.verified && taskVerification.verified){
