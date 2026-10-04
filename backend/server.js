@@ -900,6 +900,89 @@ app.get("/api/proactive",(req,res)=>{
   const checkedAt=new Date().toISOString();
   res.json({success:true,shouldSpeak,message:signal?.message||"",signal,nextAction:next,decision,checkedAt,context:{openTasks:open.length,highPriorityTasks:high.length,activeGoals:activeGoals.length,dueSoonTasks:dueSoonTasks.length,activeGoal:activeGoal?{id:activeGoal.id,title:activeGoal.title||activeGoal.name||"active goal",taskCount:goalTaskCount,openTaskCount:goalOpenTaskCount}:null,checkedAt}});
 });
+
+// ── Always-On Brain ───────────────────────────────────────────────────────
+// Server-side observation; no microphone is kept open.
+let brainBusy = false;
+let brainLastRunAt = null;
+let brainLastTalkAt = null;
+let brainLastSignal = null;
+const BRAIN_INTERVAL_MS = 60 * 1000;
+const BRAIN_TALK_COOLDOWN_MS = 5 * 60 * 1000;
+
+function brainState() {
+  return {active:true, intervalMs:BRAIN_INTERVAL_MS, lastRunAt:brainLastRunAt, lastTalkAt:brainLastTalkAt, lastSignal:brainLastSignal, pushReady:PUSH_READY, subscribers:pushSubscriptions.size};
+}
+
+async function sendBrainPush(message, signal) {
+  if (!PUSH_READY || !pushSubscriptions.size) return;
+  const payload = JSON.stringify({title:"Amvexa",body:message,brain:true,signal:signal?.type||"proactive",at:new Date().toISOString()});
+  for (const [key, subscription] of pushSubscriptions) {
+    try { await webpush.sendNotification(subscription, payload); }
+    catch (error) {
+      if (error?.statusCode === 404 || error?.statusCode === 410) pushSubscriptions.delete(key);
+      else console.error("Brain Web Push error:", error?.message || error);
+    }
+  }
+  writeJson(FILES.pushSubscriptions, Object.fromEntries(pushSubscriptions));
+}
+
+async function runBrainCycle() {
+  if (brainBusy) return;
+  brainBusy = true;
+  brainLastRunAt = new Date().toISOString();
+  try {
+    const open=tasks.filter(t=>t.status!=="done");
+    const high=open.filter(t=>t.priority==="high");
+    const next=nextAction();
+    const now=Date.now();
+    const dueSoon=next?.dueAt && !next.overdue && (() => {
+      const ms=Date.parse(next.dueAt)-now;
+      return Number.isFinite(ms) && ms>0 && ms<=60*60*1000;
+    })();
+    let signal=null;
+    if(next?.overdue) signal={type:"deadline",priority:"high",reason:"task_overdue",target:next.title};
+    else if(dueSoon) signal={type:"deadline_soon",priority:"high",reason:"task_due_soon",target:next.title};
+    else if(high.length) { const task=next?.type==="task"&&next.priority==="high"?next:high[0]; signal={type:"priority",priority:"high",reason:"high_priority_task_pending",target:task.title}; }
+    else if(open.length) signal={type:"next_action",priority:"normal",reason:"next_action_available",target:next?.title||open[0].title};
+    else {
+      const goal=goals.find(g=>g.status!=="done");
+      if(goal) signal={type:"goal_followup",priority:"normal",reason:"active_goal",target:goal.title||goal.name||"active goal"};
+    }
+    brainLastSignal=signal;
+    if(!signal) return;
+    const last=brainLastTalkAt?Date.parse(brainLastTalkAt):0;
+    if(last && now-last<BRAIN_TALK_COOLDOWN_MS) return;
+
+    const state=jarvisContext();
+    const prompt=`You are Amvexa, Kapil's proactive personal AI assistant.
+This is an autonomous background check. Speak only because the signal below is useful.
+Use respectful Hindi/Hinglish ("aap"). Maximum 2 short sentences.
+Be concrete and natural. Do not invent actions or claim completion.
+Do not say "main ready hoon" or ask a generic "kya karna hai?".
+Signal: ${JSON.stringify(signal)}
+State: ${JSON.stringify({nextAction:state.nextAction,situation:state.situation,activeGoals:state.activeGoals?.slice(0,3),highPriorityTasks:state.highPriorityTasks?.slice(0,5)})}`;
+    const ai=await generateAIResponse(prompt,"",false);
+    let message=ai.success?String(ai.text||"").trim():"";
+    if(!message){
+      if(signal.type==="deadline") message="Kapil, aapka task \"" + signal.target + "\" overdue hai.";
+      else if(signal.type==="deadline_soon") message="Kapil, \"" + signal.target + "\" agle 1 ghante mein due hai.";
+      else if(signal.type==="priority") message="Kapil, aapka high-priority task \"" + signal.target + "\" abhi pending hai.";
+      else if(signal.type==="next_action") message="Kapil, next useful action \"" + signal.target + "\" ready hai.";
+      else message="Kapil, aapka goal active hai: \"" + signal.target + "\".";
+    }
+    addConversation("assistant",message);
+    brainLastTalkAt=new Date().toISOString();
+    await sendBrainPush(message,signal);
+    context.jarvis={...(context.jarvis||{}),backgroundBrain:{status:"spoken",at:brainLastTalkAt,signal:signal.type,target:signal.target,message}};
+    writeJson(FILES.context,context);
+  } catch(error) {
+    console.error("Background brain cycle error:",error?.message||error);
+  } finally { brainBusy=false; }
+}
+
+app.get("/api/brain/status",(req,res)=>res.json({success:true,brain:brainState()}));
+
 app.post("/api/jarvis/execute", async (req,res)=>{
   const state=jarvisContext();
   const decision=buildDecision(state.nextAction);
@@ -1095,5 +1178,9 @@ app.post("/api/chat", async (req,res)=>{
 });
 
 persistenceReady = initializePersistence();
-persistenceReady.finally(() => console.log("Amvexa state initialization complete."));
+persistenceReady.finally(() => {
+  console.log("Amvexa state initialization complete.");
+  setTimeout(() => runBrainCycle().catch(() => {}), 5000);
+  setInterval(() => runBrainCycle().catch(() => {}), BRAIN_INTERVAL_MS);
+});
 app.listen(PORT,()=>console.log(`Amvexa AI ${VERSION} ${RELEASE} listening on ${PORT}`));
