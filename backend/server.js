@@ -1282,8 +1282,8 @@ app.post("/api/chat", async (req,res)=>{
   // Keep these two actions independent so identity text can never leak into the reminder title.
   const hasIdentity = /(?:^|[\s।.!?,])(?:मेरा नाम|mera naam|my name)\s+.+?(?:है|hai|is)(?=\s|[।.!?,]|$)/i.test(message);
   const hasRememberRequest = /(?:याद रखो|याद रखना|याद रखिए|yaad rakho|yaad rakhna|remember(?: this| that)?)/i.test(message);
-  const hasReminderRequest = /(?:remind|reminder|yaad\\s+dilana|yaad\\s+dila|याद\\s*दिलाना|याद\\s*दिलाओ|भूलना\\s*मत|bhoolna\\s+mat)/i.test(message)
-    && /(?:\\b(?:aaj|today|kal|tomorrow|parso|day\\s+after\\s+tomorrow)\\b|आज|कल|परसों|\\b\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)\\b|\\d{1,2}(?::\\d{2})?\\s*बजे)/i.test(message);
+  const hasReminderRequest = /(?:remind|reminder|yaad\s+dilana|yaad\s+dila|याद\s*दिलाना|याद\s*दिलाओ|भूलना\s*मत|bhoolna\s+mat)/i.test(message)
+    && /(?:\b(?:aaj|today|kal|tomorrow|parso|day\s+after\s+tomorrow)\b|आज|कल|परसों|\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\d{1,2}(?::\d{2})?\s*बजे)/i.test(message);
   const compoundIdentityReminder = hasIdentity && hasRememberRequest && hasReminderRequest;
   // High-priority deterministic commands must bypass the generative AI fallback.
   const autonomousDirect = /^(?:khud\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)[.!?।\s]*$/i.test(message);
