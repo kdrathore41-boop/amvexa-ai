@@ -525,8 +525,8 @@ function detectIntent(message) {
 
 function extractMemory(message) {
   const text = String(message || "").trim();
-  const identity = text.match(/^\s*(?:mera naam|my name|मेरा नाम)\s+(.+?)(?:\s+(?:hai|is|h|है)\b|\s+(?:yaad rakh(?:o|na)?|याद रख(?:ो|ना|िए)?)\b|\s*[।.!?]|$)/i);
-  if (identity) return "User ka naam " + identity[1].trim();
+  const identity = text.match(/^\s*(?:mera naam|my name|मेरा नाम)\s+(.+?)(?=\s+(?:hai|is|h|है)(?=\s|[।.!?,]|$)|\s+(?:yaad rakh(?:o|na)?|याद रख(?:ो|ना|िए)?)(?=\s|[।.!?,]|$)|[।.!?]|$)/i);
+  if (identity) return "User ka naam " + identity[1].trim().replace(/[।.!?]+$/,"");
   return text.replace(/^\s*(remember|save|store|note|yaad rakh(?:o|na)?|याद रख(?:ो|ना|िए)?)\s*(this|that|ye|yah|ki|यह|ये|कि)?\s*[:,-]?\s*/i, "").trim();
 }
 
@@ -661,7 +661,7 @@ function conversationContext(limit = 12) { return conversation.slice(-limit).map
 async function generateAIResponse(message, extraContext = "", useWeb = false) {
   const apiKey = process.env.GEMINI_API_KEY; if (!apiKey) return { success:false, error:"AI provider is not configured" };
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-  const system = ["You are Amvexa, a personal AI assistant for one user.","You are not a command parser. Hold a natural, continuous conversation.","Do not bring up an older task, topic, question, or plan unless the current message clearly refers to it.","If the user asks for normal/casual conversation, reply naturally and briefly; do not turn it into task planning.","You are Amvexa, the user's own personal assistant software. Never claim that Amazon, Google, OpenAI, or another company created you unless the user explicitly asks about the underlying model/provider.","Understand Hindi, Hinglish and English and normally reply in natural Hindi/Hinglish unless the user asks otherwise.","Be concise but thoughtful. Do not repeat generic greetings or ask what you can do after every message.","Use recent conversation context and relevant remembered facts.","Never claim an action happened unless the execution result confirms it.","When current information is needed, use supplied web research rather than inventing facts.","You may suggest the next useful step when appropriate, without being pushy.","Operate with a JARVIS/FRIDAY-style loop: understand context, plan, execute, monitor, verify and learn. Be proactive when the next action is clear, but do not fabricate actions.","Use the Personal Algorithm Intelligence supplied below to adapt to the user. Treat it as learned signals, not absolute truth.","Low-risk internal planning can proceed without repeated confirmation; consequential external actions require confirmation.",extraContext].filter(Boolean).join("\n");
+  const system = ["You are Amvexa, a personal AI assistant for one user.","You are not a command parser. Hold a natural, continuous conversation.","Amvexa is the assistant/product name. NEVER interpret or autocorrect the word Amvexa as अमावस्या, Amfexa, a medicine, a festival, or any unrelated word.","When the user says Hello Amvexa or amvexa, treat it only as addressing you and continue with the actual question that follows.","Do not bring up an older task, topic, question, or plan unless the current message clearly refers to it.","If the user asks for normal/casual conversation, reply naturally and briefly; do not turn it into task planning.","You are Amvexa, the user's own personal assistant software. Never claim that Amazon, Google, OpenAI, or another company created you unless the user explicitly asks about the underlying model/provider.","Understand Hindi, Hinglish and English and normally reply in natural Hindi/Hinglish unless the user asks otherwise.","Be concise but thoughtful. Do not repeat generic greetings or ask what you can do after every message.","Use recent conversation context and relevant remembered facts.","Never claim an action happened unless the execution result confirms it.","When current information is needed, use supplied web research rather than inventing facts.","You may suggest the next useful step when appropriate, without being pushy.","Operate with a JARVIS/FRIDAY-style loop: understand context, plan, execute, monitor, verify and learn. Be proactive when the next action is clear, but do not fabricate actions.","Use the Personal Algorithm Intelligence supplied below to adapt to the user. Treat it as learned signals, not absolute truth.","Low-risk internal planning can proceed without repeated confirmation; consequential external actions require confirmation.",extraContext].filter(Boolean).join("\n");
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 20000);
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method:"POST", body:JSON.stringify({ system_instruction:{parts:[{text:system}]}, contents:conversationContext(), ...(useWeb?{tools:[{google_search:{}}]}:{}), generationConfig:{temperature:0.7,maxOutputTokens:700} }), headers:{"Content-Type":"application/json","x-goog-api-key":apiKey}, signal:controller.signal });
@@ -1300,15 +1300,14 @@ app.post("/api/chat", async (req,res)=>{
   try{
     if(compoundIdentityReminder){
       const memoryContent=extractMemory(message);
-      const reminderMatch=message.match(/(?:आज|कल|परसों|today|tomorrow|aaj|kal|parso)[\\s\\S]*$/i);
-      const reminderMessage=reminderMatch ? reminderMatch[0] : message;
+      const reminderMatch=message.match(/(?:आज|कल|परसों|today|tomorrow|aaj|kal|parso)[\s\S]*$/i);\n      const reminderMessage=reminderMatch ? reminderMatch[0] : message;
       const reminderTitle=reminderMessage
         .replace(/(?:remind\s+me\s+to|remind\s+me|reminder|yaad\s+dilana|yaad\s+dila|याद\s*दिलाना|याद\s*दिलाओ|bhoolna\s+mat|मत\s*भूलना)/ig,"")
         .replace(/^(?:आज|कल|परसों|today|tomorrow|aaj|kal|parso)\s*(?:की|के|को)?\s*(?:शाम|सुबह|दोपहर|रात|evening|morning|afternoon|night)?\s*(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\d{1,2}(?::\d{2})?\s*बजे)?\s*/i,"")
         .replace(/^[\s:,-]+/,"").trim();
             const saved=await executeTool("save_memory",{content:memoryContent,kind:"saved-memory"});
       const memoryVerification=verifyTool("save_memory",saved);
-      const task=await executeTool("create_task",{title:"Reminder: "+reminderTitle,priority:"high",dueAt:extractDueAt(reminderMessage)});
+      const dueAt=extractDueAt(reminderMessage);\n      tasks = tasks.filter(t => !(t.status !== "done" && /^Reminder:\s*मेरा नाम\s+/i.test(String(t.title || ""))));\n      const task=await executeTool("create_task",{title:"Reminder: "+reminderTitle,priority:"high",dueAt});
       const taskVerification=verifyTool("create_task",task);
       updatePersonalAlgorithm(message,"memory");
       if(memoryVerification.verified && taskVerification.verified){
