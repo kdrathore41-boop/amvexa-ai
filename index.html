@@ -812,50 +812,62 @@
 
     async function startRecorderVoice(){
       const session = ++voiceSession;
-      if (voiceStopPromise) {
-        try { await voiceStopPromise; } catch (_) {}
-        if (session !== voiceSession) return;
-      }
+      if (session !== voiceSession) return;
 
       statusText.textContent = "Starting microphone...";
       showToast("Microphone starting...");
 
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone access is unavailable in this browser.");
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Microphone access is unavailable in this browser.");
+      }
 
-        if (!voiceStream || voiceStream.getAudioTracks().every(track => track.readyState === "ended")) {
-          voiceStream = await navigator.mediaDevices.getUserMedia({audio:true});
+      if (!voiceStream || voiceStream.getAudioTracks().every(track => track.readyState === "ended")) {
+        voiceStream = await navigator.mediaDevices.getUserMedia({audio:true});
+      }
+
+      const types = ["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg"];
+      const mimeType = types.find(t => MediaRecorder.isTypeSupported(t)) || "";
+
+      // Always create a fresh recorder for each recording session. Android Chrome
+      // can leave a stopped MediaRecorder unusable when it is restarted.
+      const recorder = new MediaRecorder(voiceStream, mimeType ? {mimeType} : undefined);
+      mediaRecorder = recorder;
+      const chunks = [];
+
+      recorder.ondataavailable = event => {
+        if (event.data?.size) chunks.push(event.data);
+      };
+
+      recorder.onerror = event => {
+        if (mediaRecorder === recorder) mediaRecorder = null;
+        voiceButton.disabled = false;
+        listening = false;
+        statusText.textContent = "Online";
+        showToast("MIC ERROR: " + String(event?.error?.message || "Recorder error"));
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, {type: recorder.mimeType || mimeType || "audio/webm"});
+        if (mediaRecorder === recorder) mediaRecorder = null;
+        listening = false;
+        voiceButton.disabled = false;
+        voiceButton.textContent = "◉";
+        if (!blob.size) {
+          statusText.textContent = "Online";
+          showToast("No audio captured.");
+          return;
         }
+        void transcribeAndSendVoice(blob);
+      };
 
-        const types = ["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg"];
-        const mimeType = types.find(t => MediaRecorder.isTypeSupported(t)) || "";
+      listening = true;
+      voiceCommand = true;
+      voiceButton.textContent = "●";
+      statusText.textContent = "Listening...";
+      showToast("मैं सुन रहा हूँ…");
+      recorder.start(250);
+    }
 
-        // Android Chrome is more reliable when the same MediaRecorder is
-        // restarted on the same live microphone stream instead of creating
-        // a second recorder instance for every command.
-        if (!mediaRecorder || mediaRecorder.state === "inactive" && !mediaRecorder._amvexaReady) {
-          mediaRecorder = new MediaRecorder(voiceStream, mimeType ? {mimeType} : undefined);
-          mediaRecorder._amvexaReady = true;
-          mediaRecorder._amvexaChunks = [];
-
-          let activeChunks = [];
-          mediaRecorder.ondataavailable = event => {
-            if (event.data?.size) activeChunks.push(event.data);
-          };
-          mediaRecorder.onstop = () => {
-            const chunks = activeChunks;
-            activeChunks = [];
-            const blob = new Blob(chunks, {type: mediaRecorder?.mimeType || mimeType || "audio/webm"});
-            listening = false;
-            voiceButton.disabled = false;
-            voiceButton.textContent = "◉";
-            if (!blob.size) {
-              statusText.textContent = "Online";
-              showToast("No audio captured.");
-              return;
-            }
-            void transcribeAndSendVoice(blob);
-          };
     async function transcribeAndSendVoice(blob){
       statusText.textContent = "Transcribing...";
       try {
@@ -887,8 +899,9 @@
     }
 
     function stopRecorderVoice(){
-      if (mediaRecorder && mediaRecorder.state !== "inactive") {
-        try { mediaRecorder.stop(); } catch (_) {}
+      const recorder = mediaRecorder;
+      if (recorder && recorder.state === "recording") {
+        try { recorder.stop(); } catch (_) {}
       }
     }
 
@@ -897,13 +910,11 @@
         stopRecorderVoice();
         return;
       }
-
       try {
         if ("speechSynthesis" in window) window.speechSynthesis.cancel();
         recognition = null;
         listening = false;
         voiceButton.disabled = true;
-        statusText.textContent = "Starting microphone...";
         await startRecorderVoice();
       } catch (error) {
         voiceButton.disabled = false;
