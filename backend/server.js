@@ -1278,8 +1278,13 @@ app.post("/api/chat", async (req,res)=>{
   // A single user message can contain multiple independent intents.
   // Split the common "remember my name + set a reminder" pattern so memory
   // is stored and the reminder is created as two separate verified actions.
-  const compoundIdentityReminder = /(?:मेरा नाम|mera naam|my name)\s+.+?(?:है|hai|is)\b[\s।.!?]*(?:इसे|ise)?\s*(?:याद रखो|याद रखना|yaad rakho|yaad rakhna|remember)(?:\s*[।.!?])?.*(?:remind|reminder|yaad\s+dilana|याद\s*दिलाना)/i.test(message)
-    || (/(?:मेरा नाम|mera naam|my name)\s+.+?(?:है|hai|is)\b/i.test(message) && /(?:याद रखो|याद रखना|yaad rakho|yaad rakhna|remember)/i.test(message) && /(?:\d{1,2}(?::\d{2})?\s*(?:am|pm|बजे)|आज|कल|today|tomorrow)/i.test(message));
+  // Compound intent: a single message may contain both a memory request and a reminder.
+  // Keep these two actions independent so identity text can never leak into the reminder title.
+  const hasIdentity = /(?:^|[\\s।.!?,])(?:मेरा नाम|mera naam|my name)\\s+.+?(?:है|hai|is)\\b/i.test(message);
+  const hasRememberRequest = /(?:याद रखो|याद रखना|याद रखिए|yaad rakho|yaad rakhna|remember(?: this| that)?)/i.test(message);
+  const hasReminderRequest = /(?:remind|reminder|yaad\\s+dilana|yaad\\s+dila|याद\\s*दिलाना|याद\\s*दिलाओ|भूलना\\s*मत|bhoolna\\s+mat)/i.test(message)
+    && /(?:\\b(?:aaj|today|kal|tomorrow|parso|day\\s+after\\s+tomorrow)\\b|आज|कल|परसों|\\b\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)\\b|\\d{1,2}(?::\\d{2})?\\s*बजे)/i.test(message);
+  const compoundIdentityReminder = hasIdentity && hasRememberRequest && hasReminderRequest;
   // High-priority deterministic commands must bypass the generative AI fallback.
   const autonomousDirect = /^(?:khud\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)[.!?।\s]*$/i.test(message);
   const executeTaskDirect = /^(?:is\s+task\s+ko\s+khud\s+(?:execute|exicute)\s+karo|is\s+task\s+ko\s+(?:execute|exicute)\s+karo|task\s+ko\s+khud\s+(?:execute|exicute)\s+karo|execute\s+this\s+task|execute\s+the\s+task)[.!?।\s]*$/i.test(message);
