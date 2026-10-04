@@ -799,80 +799,96 @@
       return r;
     }
 
-    async function startRecorderVoice(){
-      // Always create a completely fresh recorder session. Android Chrome can
-      // leave a stopped MediaRecorder object around after the first command.
-      if (mediaRecorder && mediaRecorder.state !== "inactive") {
-        try { mediaRecorder.stop(); } catch (_) {}
-        return;
+    let voiceStream = null;
+    let voiceSession = 0;
+    let voiceStopPromise = null;
+
+    function releaseVoiceStream() {
+      if (voiceStream) {
+        voiceStream.getTracks().forEach(track => { try { track.stop(); } catch (_) {} });
+        voiceStream = null;
       }
-      mediaRecorder = null;
-      recordedChunks = [];
+    }
+
+    async function startRecorderVoice(){
+      const session = ++voiceSession;
+      if (voiceStopPromise) {
+        try { await voiceStopPromise; } catch (_) {}
+        if (session !== voiceSession) return;
+      }
+
       statusText.textContent = "Starting microphone...";
       showToast("Microphone starting...");
 
       try {
         if (!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone access is unavailable in this browser.");
-        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+
+        if (!voiceStream || voiceStream.getAudioTracks().every(track => track.readyState === "ended")) {
+          voiceStream = await navigator.mediaDevices.getUserMedia({audio:true});
+        }
+
         const types = ["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg"];
         const mimeType = types.find(t => MediaRecorder.isTypeSupported(t)) || "";
-        const recorder = new MediaRecorder(stream, mimeType ? {mimeType} : undefined);
+        const recorder = new MediaRecorder(voiceStream, mimeType ? {mimeType} : undefined);
         mediaRecorder = recorder;
-        recordedChunks = [];
+        const chunks = [];
 
         recorder.ondataavailable = event => {
-          if (event.data?.size) recordedChunks.push(event.data);
+          if (event.data?.size) chunks.push(event.data);
         };
 
         recorder.onstop = async () => {
-          stream.getTracks().forEach(track => track.stop());
-          if (mediaRecorder === recorder) mediaRecorder = null;
-          const blob = new Blob(recordedChunks, {type: recorder.mimeType || mimeType || "audio/webm"});
-          listening = false;
-          voiceButton.disabled = false;
-          voiceButton.textContent = "◉";
-          statusText.textContent = "Transcribing...";
-
-          if (!blob.size) {
-            statusText.textContent = "Online";
-            showToast("No audio captured.");
-            return;
-          }
-
-          try {
-            const base64 = await new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-            const response = await fetch(API_URL + "/api/voice/transcribe", {
-              method:"POST",
-              headers:{"Content-Type":"application/json"},
-              body:JSON.stringify({audio:base64,mimeType:blob.type||"audio/webm"})
-            });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok || !data.success || !data.transcript) {
-              throw new Error(data.error || "Voice transcription failed");
-            }
-            input.value = data.transcript.trim();
-            voiceCommand = true;
-            handsFree = false;
-            await sendMessage();
-          } catch (error) {
-            const message = String(error?.message || "Voice input failed.");
-            console.error("Amvexa voice input error:", message);
-            statusText.textContent = "Online";
-            showToast(message);
-          } finally {
-            voiceButton.disabled = false;
+          const finish = (async () => {
+            if (mediaRecorder === recorder) mediaRecorder = null;
+            const blob = new Blob(chunks, {type: recorder.mimeType || mimeType || "audio/webm"});
             listening = false;
+            voiceButton.disabled = false;
             voiceButton.textContent = "◉";
+            statusText.textContent = "Transcribing...";
+
+            if (!blob.size) {
+              statusText.textContent = "Online";
+              showToast("No audio captured.");
+              return;
+            }
+
+            try {
+              const base64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+              const response = await fetch(API_URL + "/api/voice/transcribe", {
+                method:"POST",
+                headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({audio:base64,mimeType:blob.type||"audio/webm"})
+              });
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok || !data.success || !data.transcript) throw new Error(data.error || "Voice transcription failed");
+              input.value = data.transcript.trim();
+              voiceCommand = true;
+              handsFree = false;
+              await sendMessage();
+            } catch (error) {
+              const message = String(error?.message || "Voice input failed.");
+              console.error("Amvexa voice input error:", message);
+              statusText.textContent = "Online";
+              showToast(message);
+            } finally {
+              voiceButton.disabled = false;
+              listening = false;
+              voiceButton.textContent = "◉";
+            }
+          })();
+
+          voiceStopPromise = finish;
+          try { await finish; } finally {
+            if (voiceStopPromise === finish) voiceStopPromise = null;
           }
         };
 
         recorder.onerror = () => {
-          stream.getTracks().forEach(track => track.stop());
           if (mediaRecorder === recorder) mediaRecorder = null;
           listening = false;
           voiceButton.disabled = false;
@@ -890,6 +906,7 @@
       } catch (error) {
         listening = false;
         mediaRecorder = null;
+        releaseVoiceStream();
         voiceButton.disabled = false;
         statusText.textContent = "Online";
         voiceButton.textContent = "◉";
@@ -897,21 +914,16 @@
       }
     }
 
-    function stopRecorderVoice(){if(mediaRecorder&&mediaRecorder.state!=="inactive"){try{mediaRecorder.stop();}catch(_){}}}
-    
+    function stopRecorderVoice(){
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        try { mediaRecorder.stop(); } catch (_) {}
+      }
+    }
+
     async function toggleVoice(){
-      // Use MediaRecorder directly on Android instead of browser SpeechRecognition.
-      // Chrome's SpeechRecognition can fail with a service-level "network" error
-      // even when Amvexa's own backend is reachable.
-      if (listening && mediaRecorder) {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
         stopRecorderVoice();
         return;
-      }
-
-      if (listening && recognition) {
-        try { recognition.stop(); } catch (_) {}
-        recognition = null;
-        listening = false;
       }
 
       try {
@@ -920,8 +932,6 @@
         listening = false;
         voiceButton.disabled = true;
         statusText.textContent = "Starting microphone...";
-        await new Promise(resolve => setTimeout(resolve, 120));
-        voiceButton.disabled = false;
         await startRecorderVoice();
       } catch (error) {
         voiceButton.disabled = false;
@@ -930,7 +940,8 @@
         showToast("MIC ERROR: " + String(error?.message || "Microphone unavailable"));
       }
     }
-    window.toggleVoice = toggleVoice;
+
+    window.toggleVoice = toggleVoice;\n    window.addEventListener('pagehide', releaseVoiceStream);
 
     function speak(text) {
       if (!speakReplies || !("speechSynthesis" in window)) return;
