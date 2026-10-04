@@ -839,6 +839,34 @@ app.get("/api/context", (req,res)=>res.json({success:true,context:contextSummary
 app.get("/api/conversation", (req,res)=>res.json({success:true,conversation:conversation.slice(-MAX.conversation)}));
 app.get("/api/intelligence", (req,res)=>res.json({success:true,intelligence:intelligenceSnapshot()}));
 app.get("/api/jarvis", (req,res)=>res.json({success:true,state:jarvisContext()}));
+app.get("/api/autonomous-talk", async (req,res)=>{
+  const state=jarvisContext();
+  const recent=conversation.slice(-10).map(t=>({role:t.role,content:String(t.content||"").slice(0,700)}));
+  const activeTasks=tasks.filter(t=>t.status!=="done").slice(0,5).map(t=>({title:t.title,priority:t.priority,dueAt:t.dueAt||null,status:t.status}));
+  const activeGoals=goals.filter(g=>g.status!=="done").slice(0,3).map(g=>({title:g.title||g.name,status:g.status}));
+  const prompt=`You are Amvexa, Kapil's proactive personal AI companion. This is an autonomous check-in: the user has not spoken for a while, so YOU chose to start the conversation.
+Speak naturally in Hindi/Hinglish, respectful "aap". Maximum 2 short sentences.
+Use the current context and recent conversation to choose ONE useful, human reason to speak.
+Do not repeat the previous assistant message or a generic "main ready hoon" line.
+If there is an active task/goal, mention a concrete next step or useful observation.
+If there is no active work, start a meaningful light conversation based on the recent context instead of asking "what should we do?".
+Do not invent facts, actions, memories, or external events. Do not claim to have completed anything.
+Return only the spoken message.
+
+Current state:
+${JSON.stringify({situation:state.situation,nextAction:state.nextAction,activeTasks,activeGoals,context:contextSummary(),recent})}`;
+  const ai=await generateAIResponse(prompt, "", false);
+  let message=ai.success ? String(ai.text||"").trim() : "";
+  if(!message){
+    const next=state.nextAction;
+    const lastUser=conversation.filter(t=>t.role==="user").slice(-1)[0]?.content||"";
+    if(next?.type==="task") message="Kapil, aapka agla useful kaam abhi ""+next.title+"" hai—chahein to main isi context se aage badh sakta hoon.";
+    else if(next?.type==="goal") message="Kapil, aapka goal abhi active hai. Main uske next concrete step ko context mein rakhe hue hoon.";
+    else if(/नहीं.*काम|koi.*kaam.*nahi|no.*work/i.test(lastUser)) message="ठीक है Kapil, अभी task नहीं है। थोड़ी normal baat karte hain—jo bhi aapke dimaag mein chal raha hai, wahi se shuru karte hain.";
+    else message="Kapil, main yahin hoon. Abhi koi urgent kaam nahi hai, to main context ko dhyan mein rakhkar aapse naturally baat kar sakta hoon.";
+  }
+  res.json({success:true,shouldSpeak:Boolean(message),message,source:ai.success?"ai":"local",checkedAt:new Date().toISOString(),state:{nextAction:state.nextAction,activeTasks:activeTasks.length,activeGoals:activeGoals.length}});
+});
 app.get("/api/proactive",(req,res)=>{
   const open=tasks.filter(t=>t.status!=="done");
   const high=open.filter(t=>t.priority==="high");
