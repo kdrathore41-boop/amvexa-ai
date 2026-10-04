@@ -838,95 +838,51 @@
           mediaRecorder._amvexaReady = true;
           mediaRecorder._amvexaChunks = [];
 
+          let activeChunks = [];
           mediaRecorder.ondataavailable = event => {
-            if (event.data?.size) mediaRecorder._amvexaChunks.push(event.data);
+            if (event.data?.size) activeChunks.push(event.data);
           };
-
-          mediaRecorder.onstop = async () => {
-            const recorder = mediaRecorder;
-            const chunks = recorder?._amvexaChunks || [];
-            const blob = new Blob(chunks, {type: recorder?.mimeType || mimeType || "audio/webm"});
-            recorder._amvexaChunks = [];
+          mediaRecorder.onstop = () => {
+            const chunks = activeChunks;
+            activeChunks = [];
+            const blob = new Blob(chunks, {type: mediaRecorder?.mimeType || mimeType || "audio/webm"});
             listening = false;
             voiceButton.disabled = false;
             voiceButton.textContent = "◉";
-            statusText.textContent = "Transcribing...";
-
-            const finish = (async () => {
-              if (!blob.size) {
-                statusText.textContent = "Online";
-                showToast("No audio captured.");
-                return;
-              }
-
-              try {
-                const base64 = await new Promise((resolve, reject) => {
-                  const reader = new FileReader();
-                  reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
-                  reader.onerror = reject;
-                  reader.readAsDataURL(blob);
-                });
-                const response = await fetch(API_URL + "/api/voice/transcribe", {
-                  method:"POST",
-                  headers:{"Content-Type":"application/json"},
-                  body:JSON.stringify({audio:base64,mimeType:blob.type||"audio/webm"})
-                });
-                const data = await response.json().catch(() => ({}));
-                if (!response.ok || !data.success || !data.transcript) {
-                  throw new Error(data.error || "Voice transcription failed");
-                }
-                input.value = data.transcript.trim();
-                voiceCommand = true;
-                handsFree = false;
-                await sendMessage();
-              } catch (error) {
-                const message = String(error?.message || "Voice input failed.");
-                console.error("Amvexa voice input error:", message);
-                statusText.textContent = "Online";
-                showToast(message);
-              } finally {
-                voiceButton.disabled = false;
-                listening = false;
-                voiceButton.textContent = "◉";
-              }
-            })();
-
-            voiceStopPromise = finish;
-            try { await finish; }
-            finally {
-              if (voiceStopPromise === finish) voiceStopPromise = null;
+            if (!blob.size) {
+              statusText.textContent = "Online";
+              showToast("No audio captured.");
+              return;
             }
+            void transcribeAndSendVoice(blob);
           };
-
-          mediaRecorder.onerror = () => {
-            listening = false;
-            voiceButton.disabled = false;
-            voiceButton.textContent = "◉";
-            statusText.textContent = "Online";
-            showToast("Microphone recording error. Please try again.");
-          };
-        }
-
-        // Give Android Chrome a short gap after the previous audio/TTS
-        // session before restarting the recorder.
-        await new Promise(resolve => setTimeout(resolve, 180));
-        if (session !== voiceSession) return;
-
-        mediaRecorder._amvexaChunks = [];
-        mediaRecorder.start(250);
-        listening = true;
-        voiceButton.disabled = false;
-        voiceButton.textContent = "●";
-        statusText.textContent = "Listening...";
-        showToast("I'm listening... Tap the mic again when you're done.");
+    async function transcribeAndSendVoice(blob){
+      statusText.textContent = "Transcribing...";
+      try {
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        const response = await fetch(API_URL + "/api/voice/transcribe", {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({audio:base64,mimeType:blob.type||"audio/webm"})
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success || !data.transcript) throw new Error(data.error || "Voice transcription failed");
+        input.value = data.transcript.trim();
+        voiceCommand = true;
+        handsFree = false;
+        await sendMessage();
       } catch (error) {
-        listening = false;
-        mediaRecorder = null;
-        releaseVoiceStream();
-        voiceButton.disabled = false;
         statusText.textContent = "Online";
+        showToast(String(error?.message || "Voice input failed."));
+      } finally {
+        voiceButton.disabled = false;
+        listening = false;
         voiceButton.textContent = "◉";
-        showToast("MIC ERROR: " + String(error?.name || "Unknown") + " — " + String(error?.message || "No microphone access"));
       }
     }
 
