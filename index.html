@@ -663,7 +663,7 @@
     let backendReadyPromise = (async () => {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 60000);
+        const timeout = setTimeout(() => controller.abort(), 90000);
         const response = await fetch(API_URL + "/api/health", {
           cache: "no-store",
           signal: controller.signal
@@ -1120,24 +1120,46 @@
           backendReadyPromise = null;
         }
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 45000);
+        let response = null;
+        let lastError = null;
 
-        const response = await fetch(`${API_URL}/api/chat`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            message: message
-          }),
-          signal: controller.signal
-        });
+        // Render Free can be waking from sleep and mobile networks can briefly
+        // drop a request. Give the backend enough time for cold-start, then retry
+        // one transient failure instead of immediately showing a false connection error.
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 90000);
+          try {
+            response = await fetch(`${API_URL}/api/chat`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                message: message
+              }),
+              signal: controller.signal
+            });
 
-        clearTimeout(timeoutId);
+            clearTimeout(timeoutId);
 
-        if (!response.ok) {
-          throw new Error(`Server returned ${response.status}`);
+            if (response.ok) break;
+
+            const retryable = [502, 503, 504].includes(response.status);
+            if (!retryable || attempt === 1) {
+              throw new Error(`Server returned ${response.status}`);
+            }
+            await new Promise(resolve => setTimeout(resolve, 1200));
+          } catch (error) {
+            clearTimeout(timeoutId);
+            lastError = error;
+            if (attempt === 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, 1200));
+          }
+        }
+
+        if (!response?.ok) {
+          throw lastError || new Error("Backend request failed");
         }
 
         const data = await response.json();
