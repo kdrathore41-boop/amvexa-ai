@@ -1300,8 +1300,7 @@ app.post("/api/chat", async (req,res)=>{
   try{
     if(compoundIdentityReminder){
       const memoryContent=extractMemory(message);
-      const reminderMatch=message.match(/(?:आज|कल|परसों|today|tomorrow|aaj|kal|parso)[\\s\\S]*$/i);
-      const reminderMessage=reminderMatch ? reminderMatch[0] : message;
+      const reminderMatch=message.match(/(?:आज|कल|परसों|today|tomorrow|aaj|kal|parso)[\\s\\S]*$/i);\n      const reminderMessage=reminderMatch ? reminderMatch[0] : message;
       const reminderTitle=reminderMessage
         .replace(/(?:remind\s+me\s+to|remind\s+me|reminder|yaad\s+dilana|yaad\s+dila|याद\s*दिलाना|याद\s*दिलाओ|bhoolna\s+mat|मत\s*भूलना)/ig,"")
         .replace(/^(?:आज|कल|परसों|today|tomorrow|aaj|kal|parso)\s*(?:की|के|को)?\s*(?:शाम|सुबह|दोपहर|रात|evening|morning|afternoon|night)?\s*(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\d{1,2}(?::\d{2})?\s*बजे)?\s*/i,"")
