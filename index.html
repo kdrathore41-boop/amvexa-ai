@@ -1148,11 +1148,15 @@
       statusText.textContent = "Thinking...";
 
       try {
-        // Do not race the first chat request against Render cold-start.
+        // Health warm-up is only a hint. Never block the real chat request
+        // when the warm-up failed on a weak/mobile connection.
         if (backendReadyPromise) {
           statusText.textContent = "Connecting...";
-          await backendReadyPromise;
+          const warmed = await backendReadyPromise;
           backendReadyPromise = null;
+          if (!warmed) {
+            statusText.textContent = "Reconnecting...";
+          }
         }
 
         let response = null;
