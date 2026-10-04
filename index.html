@@ -906,19 +906,36 @@
     }
 
     async function toggleVoice(){
-      if (mediaRecorder && mediaRecorder.state === "recording") {
-        stopRecorderVoice();
-        return;
-      }
-      try {
-        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      // Prefer native SpeechRecognition on Android Chrome. It gives a one-tap,
+      // one-command flow and avoids keeping a MediaRecorder session open.
+      if (recognition || listening) {
+        try { recognition?.stop(); } catch (_) {}
         recognition = null;
         listening = false;
+        voiceButton.textContent = "◉";
+        statusText.textContent = "Online";
+        return;
+      }
+
+      try {
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+        voiceRetryCount = 0;
+        const r = createSpeechRecognition();
+
+        if (r) {
+          recognition = r;
+          r.start();
+          return;
+        }
+
+        // Browser has no SpeechRecognition: use the existing recorder fallback.
         voiceButton.disabled = true;
         await startRecorderVoice();
       } catch (error) {
+        recognition = null;
         voiceButton.disabled = false;
         listening = false;
+        voiceButton.textContent = "◉";
         statusText.textContent = "Online";
         showToast("MIC ERROR: " + String(error?.message || "Microphone unavailable"));
       }
