@@ -8,7 +8,7 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 10000;
 const ROOT = path.join(__dirname, "..");
-const VERSION = "4.1";
+const VERSION = "4.1.1";
 const RELEASE = "1.2.0";
 
 const PUSH_DATA_DIR = process.env.PUSH_DATA_DIR || __dirname;
