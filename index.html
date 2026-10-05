@@ -641,11 +641,20 @@
     const AMVEXA_BACKEND = "https://amvexa-ai.onrender.com";
 
     async function apiFetch(path, options = {}) {
-      const urls = API_URL === AMVEXA_BACKEND ? [API_URL] : [API_URL, AMVEXA_BACKEND];
+      // Chat/voice must always reach the live Amvexa backend, even when the
+      // mobile page is served from a different frontend origin.
+      const candidates = API_URL === AMVEXA_BACKEND
+        ? [AMVEXA_BACKEND]
+        : [AMVEXA_BACKEND, API_URL];
       let lastError = null;
-      for (const base of urls) {
-        try { return await fetch(base + path, options); }
-        catch (error) { lastError = error; }
+      for (const base of candidates) {
+        try {
+          const response = await fetch(base + path, options);
+          if (response.ok || base === API_URL) return response;
+          lastError = new Error(`Backend returned ${response.status}`);
+        } catch (error) {
+          lastError = error;
+        }
       }
       throw lastError || new Error("Backend request failed");
     }
