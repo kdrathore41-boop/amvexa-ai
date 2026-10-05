@@ -1317,6 +1317,18 @@ app.post("/api/voice/transcribe", async (req,res)=>{
 app.post("/api/chat", async (req,res)=>{
   const message=String(req.body?.message||"").trim();
   if(!message)return res.status(400).json({success:false,error:"Message is required"});
+
+  // Keep the most basic assistant path completely independent of persistence,
+  // planning and Gemini. If the API route is reachable, a greeting must get
+  // a deterministic 200 response immediately.
+  const earlyGreeting = /^(?:hello|hi|hey|namaste|हेलो|हैलो|नमस्ते|नमस्कार)(?:\s+amvexa)?[.!?।\s]*$/i.test(message);
+  if (earlyGreeting) {
+    const responseText = "नमस्ते जी। Amvexa यहाँ है।";
+    try { addConversation("user", message); } catch (_) {}
+    try { addConversation("assistant", responseText); } catch (_) {}
+    return res.json({success:true,response:responseText,tool:null,verification:{verified:true,reason:"deterministic greeting"}});
+  }
+
   addConversation("user",message);
   const detectedIntent = detectIntent(message);
   // A single user message can contain multiple independent intents.
