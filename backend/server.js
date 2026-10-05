@@ -544,7 +544,7 @@ function detectIntent(message) {
       /\b(?:that|same)\s+(?:task|work)\s+(?:continue|proceed|move forward)\b/i.test(text)) return "assistant_mode";
   if (/\b(personal ai assistant|personal assistant|jarvis|friday|sirf chat|just chat|next action|agla action|next step)\b/i.test(text) && /\b(goal|assistant|kaam|work|analyze|analyse|analyze karo|kaise kaam|how should you work|next action|next step|sirf chat|just chat)\b/i.test(text)) return "assistant_mode";
   if (/^\s*(?:khud\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)\s*[.!?]*$/i.test(text)) return "autonomous_action";
-  if (/\b(hello|hi|hey|namaste)\b/.test(text)) return "greeting";
+  if (/\b(hello|hi|hey|namaste)\b/.test(text) || /हेलो|हैलो|नमस्ते|नमस्कार/.test(text)) return "greeting";
   if (/\b(what|why|how|when|where|who|which|can you|do you|are you|tum|aap|kya|kyun|kaise|kab|kahan|kaun|hai|ho)\b/.test(text)) return "question";
   return "conversation";
 }
