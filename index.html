@@ -922,6 +922,7 @@
       // Prefer native SpeechRecognition on Android Chrome. It gives a one-tap,
       // one-command flow and avoids keeping a MediaRecorder session open.
       if (recognition || listening) {
+        try { recognition?._markUserStopped?.(); } catch (_) {}
         try { recognition?.stop(); } catch (_) {}
         recognition = null;
         listening = false;
