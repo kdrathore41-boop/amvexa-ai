@@ -1321,7 +1321,7 @@ app.post("/api/chat", async (req,res)=>{
   // Keep the most basic assistant path completely independent of persistence,
   // planning and Gemini. If the API route is reachable, a greeting must get
   // a deterministic 200 response immediately.
-  const earlyGreeting = /^(?:hello|hi|hey|namaste|हेलो|हैलो|नमस्ते|नमस्कार)(?:\s+amvexa)?[.!?।\s]*$/i.test(message);
+  const earlyGreeting = /^(?:hello|hi|hey|namaste|हेलो|हैलो|नमस्ते|नमस्कार)(?:\s+|$)/i.test(message);
   if (earlyGreeting) {
     const responseText = "नमस्ते जी। Amvexa यहाँ है।";
     try { addConversation("user", message); } catch (_) {}
