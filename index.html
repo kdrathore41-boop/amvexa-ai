@@ -641,17 +641,18 @@
     const AMVEXA_BACKEND = "https://amvexa-ai.onrender.com";
 
     async function apiFetch(path, options = {}) {
-      // Chat/voice must always reach the live Amvexa backend, even when the
-      // mobile page is served from a different frontend origin.
-      const candidates = API_URL === AMVEXA_BACKEND
-        ? [AMVEXA_BACKEND]
-        : [AMVEXA_BACKEND, API_URL];
+      // Core API calls always use the known live backend origin.
+      // Same-origin fallback is only used when explicitly requested by the
+      // caller for a non-core route.
       let lastError = null;
-      for (const base of candidates) {
+      try {
+        return await fetch(AMVEXA_BACKEND + path, options);
+      } catch (error) {
+        lastError = error;
+      }
+      if (API_URL !== AMVEXA_BACKEND) {
         try {
-          const response = await fetch(base + path, options);
-          if (response.ok || base === API_URL) return response;
-          lastError = new Error(`Backend returned ${response.status}`);
+          return await fetch(API_URL + path, options);
         } catch (error) {
           lastError = error;
         }
