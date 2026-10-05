@@ -706,6 +706,9 @@
       if (!SpeechRecognition) return null;
 
       const r = new SpeechRecognition();
+      let gotResult = false;
+      let userStopped = false;
+
       r.lang = "hi-IN";
       r.continuous = false;
       r.interimResults = false;
@@ -720,23 +723,25 @@
       };
 
       r.onresult = async (event) => {
+        gotResult = true;
         const transcript = String(event.results?.[0]?.[0]?.transcript || "").trim();
         listening = false;
         voiceButton.textContent = "◉";
+
         if (!transcript) {
           statusText.textContent = "Online";
           showToast("आवाज़ समझ नहीं आई। फिर से बोलिए।");
           return;
         }
+
         input.value = transcript;
         statusText.textContent = "Processing...";
-        // Stop the browser recognition session immediately after receiving the
-        // final transcript. Do not leave Android Chrome's audio session alive
-        // while /api/chat is processing.
+
         if (recognition === r) {
           try { r.stop(); } catch (_) {}
           recognition = null;
         }
+
         try {
           await sendMessage();
         } finally {
@@ -760,27 +765,19 @@
           return;
         }
 
-        // Android Chrome can report a transient speech-service/network error
-        // after the first successful command. Retry with a brand-new
-        // SpeechRecognition instance before falling back to MediaRecorder.
-        if (wasCurrent && code === "network" && voiceRetryCount < 1) {
-          voiceRetryCount += 1;
-          showToast("Voice reconnecting…");
+        // Native Android SpeechRecognition can silently fail after a successful
+        // command. Do not keep retrying the same broken recognition instance.
+        // Fall back to the already-implemented MediaRecorder transcription path.
+        if (wasCurrent && !gotResult && !userStopped) {
+          showToast("Voice service reconnecting…");
           setTimeout(() => {
             if (recognition || listening || sendButton.disabled) return;
-            try {
-              const retry = createSpeechRecognition();
-              if (!retry) {
-                startRecorderVoice();
-                return;
-              }
-              recognition = retry;
-              retry.start();
-            } catch (_) {
-              recognition = null;
-              startRecorderVoice();
-            }
-          }, 450);
+            startRecorderVoice().catch(error => {
+              voiceButton.disabled = false;
+              statusText.textContent = "Online";
+              showToast("MIC ERROR: " + String(error?.message || "Microphone unavailable"));
+            });
+          }, 250);
           return;
         }
 
@@ -788,14 +785,30 @@
       };
 
       r.onend = () => {
-        // onend can arrive after onresult has already handed the command to
-        // sendMessage(). Never overwrite Processing/Thinking/Connecting state.
         listening = false;
         voiceButton.textContent = "◉";
         if (recognition === r) recognition = null;
+
+        // If Android ended a fresh recognition session without producing a
+        // result, automatically switch to MediaRecorder instead of leaving
+        // the user with a dead mic button. Never do this after a real result
+        // or an intentional user stop.
+        if (!gotResult && !userStopped) {
+          statusText.textContent = "Reconnecting...";
+          setTimeout(() => {
+            if (recognition || listening || sendButton.disabled) return;
+            startRecorderVoice().catch(error => {
+              statusText.textContent = "Online";
+              showToast("MIC ERROR: " + String(error?.message || "Microphone unavailable"));
+            });
+          }, 250);
+          return;
+        }
+
         if (statusText.textContent === "Listening...") statusText.textContent = "Online";
       };
 
+      r._markUserStopped = () => { userStopped = true; };
       return r;
     }
 
