@@ -638,6 +638,17 @@
 
   <script>
     const API_URL = window.location.origin;
+    const AMVEXA_BACKEND = "https://amvexa-ai.onrender.com";
+
+    async function apiFetch(path, options = {}) {
+      const urls = API_URL === AMVEXA_BACKEND ? [API_URL] : [API_URL, AMVEXA_BACKEND];
+      let lastError = null;
+      for (const base of urls) {
+        try { return await fetch(base + path, options); }
+        catch (error) { lastError = error; }
+      }
+      throw lastError || new Error("Backend request failed");
+    }
 
     const input = document.getElementById("commandInput");
     const toast = document.getElementById("toast");
@@ -1223,7 +1234,7 @@
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 90000);
           try {
-            response = await fetch(`${API_URL}/api/chat`, {
+            response = await apiFetch("/api/chat", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json"
