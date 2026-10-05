@@ -1342,7 +1342,9 @@ app.post("/api/chat", async (req,res)=>{
   updatePersonalAlgorithm(message, plan.tool === "create_task" ? "planning" : plan.tool === "get_tasks" ? "tasks" : plan.tool === "complete_task" ? "task_complete" : plan.tool || detectedIntent);
   let toolResult=null; let verification=null; let responseText="";
   try{
-    if(compoundIdentityReminder){
+    // Greetings must never depend on Gemini/network. This keeps basic voice/chat alive even when the AI provider is unavailable.
+    if(detectedIntent==="greeting") responseText=localBrain(message,"deterministic greeting");
+    if(compoundIdentityReminder && !responseText){
       const memoryContent=extractMemory(message);
       const reminderMatch=message.match(/(?:आज|कल|परसों|today|tomorrow|aaj|kal|parso)[\s\S]*$/i);
       const reminderMessage=reminderMatch ? reminderMatch[0] : message;
@@ -1407,8 +1409,9 @@ app.post("/api/chat", async (req,res)=>{
     }else if(plan.tool){responseText=JSON.stringify(toolResult);}
     else {const ai=await buildAssistantResponse(message,null,false);responseText=ai.success?ai.text:localBrain(message,ai.error);}
     }  }catch(error){responseText=localBrain(message,error?.message||"Unknown error");}
-  addConversation("assistant",responseText);
-  const proactive=jarvisContext();
+  try { addConversation("assistant",responseText); } catch(error) { console.error("Assistant conversation write failed:", error?.message || error); }
+  let proactive;
+  try { proactive=jarvisContext(); } catch(error) { console.error("JARVIS context response failed:", error?.message || error); proactive={nextAction:null,context:{},highPriorityTasks:[]}; }
   return res.json({success:true,response:responseText,tool:plan.tool||null,verification,data:{understanding:{intent:plan.tool==="create_task"?"planning":plan.tool==="complete_task"?"task_complete":plan.tool==="get_tasks"?"tasks":detectedIntent},execution:{tool:plan.tool||null,action:toolResult?.action||null,verified:Boolean(verification?.verified),verification:verification||null},jarvis:{nextAction:proactive.nextAction,context:proactive.context,highPriorityTasks:proactive.highPriorityTasks}}});
 });
 
