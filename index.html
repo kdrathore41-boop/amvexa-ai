@@ -641,18 +641,22 @@
     const AMVEXA_BACKEND = "https://amvexa-ai.onrender.com";
 
     async function apiFetch(path, options = {}) {
-      // Core API calls always use the known live backend origin.
-      // Same-origin fallback is only used when explicitly requested by the
-      // caller for a non-core route.
+      // The page and Express API are served by the same Render web service.
+      // Prefer same-origin requests; only use the fixed backend origin if
+      // the page is being opened from a different frontend host.
       let lastError = null;
       try {
-        return await fetch(AMVEXA_BACKEND + path, options);
+        const response = await fetch(API_URL + path, options);
+        if (response.ok || API_URL === AMVEXA_BACKEND || ![502,503,504].includes(response.status)) {
+          return response;
+        }
+        lastError = new Error("Server returned " + response.status);
       } catch (error) {
         lastError = error;
       }
       if (API_URL !== AMVEXA_BACKEND) {
         try {
-          return await fetch(API_URL + path, options);
+          return await fetch(AMVEXA_BACKEND + path, options);
         } catch (error) {
           lastError = error;
         }
