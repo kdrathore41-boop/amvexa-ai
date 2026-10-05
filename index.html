@@ -1341,11 +1341,16 @@
 
       } catch (error) {
         console.error("Amvexa connection error:", error);
-        if (error?.name === "AbortError") showToast("Backend response में ज्यादा समय लग रहा है।");
+        const detail = String(error?.message || error || "Backend request failed");
+        if (error?.name === "AbortError") {
+          showToast("Backend response में ज्यादा समय लग रहा है।");
+        } else {
+          showToast("Backend error: " + detail.slice(0, 120));
+        }
 
         addMessage(
           "assistant",
-          "I couldn't reach my backend right now. Please try again."
+          "Backend connection failed: " + detail.slice(0, 160)
         );
 
         statusText.textContent = "Connection issue";
