@@ -1319,7 +1319,15 @@ app.post("/api/voice/transcribe", async (req,res)=>{
     return res.status(502).json({success:false,error:`Voice transcription failed at ${stage}: ${message}`,stage});
   }finally{clearTimeout(timeout);}
 });
-// Final API safety net: never expose an opaque 500 to the client.\napp.use((error, req, res, next) => {\n  console.error("Unhandled API error:", error?.stack || error?.message || error);\n  if (res.headersSent) return next(error);\n  if (req.path.startsWith("/api/")) return res.status(500).json({success:false,error:"Backend internal error",detail:String(error?.message || error || "Unknown error").slice(0,500)});\n  next(error);\n});\n\napp.post("/api/chat", async (req,res)=>{
+// Final API safety net: never expose an opaque 500 to the client.
+app.use((error, req, res, next) => {
+  console.error("Unhandled API error:", error?.stack || error?.message || error);
+  if (res.headersSent) return next(error);
+  if (req.path.startsWith("/api/")) return res.status(500).json({success:false,error:"Backend internal error",detail:String(error?.message || error || "Unknown error").slice(0,500)});
+  next(error);
+});
+
+app.post("/api/chat", async (req,res)=>{
   const message=String(req.body?.message||"").trim();
   if(!message)return res.status(400).json({success:false,error:"Message is required"});
 
@@ -1364,7 +1372,12 @@ app.post("/api/voice/transcribe", async (req,res)=>{
   const postponeReference = message.replace(/(?:postpone|reschedule|पोस्टपोन|स्थगित)/ig,"").replace(/(?:कल|kal|tomorrow|के लिए|ke liye|कर दो|करो|do|karo|ko|को)/ig,"").replace(/[\s:,-]+/g," ").trim();
   const contextContinueDirect = /^(?:वो|उस|उस वाला|वही|वही वाला)\s+(?:काम|टास्क)(?:\s+को)?\s+(?:आगे|जारी)\s*(?:बढ़ाओ|बढ़ा(?:ओ|दो)|चलाओ|करो|कर दो|शुरू करो|जारी रखो)?[.!?।\s]*$/i.test(message) || /^(?:continue|carry on|keep going)\s+(?:that|the|same)\s+(?:task|work)[.!?\s]*$/i.test(message);
   const plan=contextContinueDirect ? {tool:"continue_context",args:{}} : executeTaskDirect ? {tool:"execute_task",args:{reference:""}} : autonomousDirect ? {tool:"jarvis_autonomous_step",args:{}} : postponeDirect ? {tool:"postpone_task",args:{reference:postponeReference,dueAt:extractDueAt("कल")}} : reminderDirect ? {tool:"create_task",args:{title:"Reminder: "+reminderTitle,priority:"high",dueAt:extractDueAt(message)}} : planTool(message);
-  // Personal intelligence must never be allowed to break the chat/voice path.\n  try {\n    updatePersonalAlgorithm(message, plan.tool === "create_task" ? "planning" : plan.tool === "get_tasks" ? "tasks" : plan.tool === "complete_task" ? "task_complete" : plan.tool || detectedIntent);\n  } catch (error) {\n    console.error("Personal intelligence update skipped:", error?.message || error);\n  }
+  // Personal intelligence must never be allowed to break the chat/voice path.
+  try {
+    updatePersonalAlgorithm(message, plan.tool === "create_task" ? "planning" : plan.tool === "get_tasks" ? "tasks" : plan.tool === "complete_task" ? "task_complete" : plan.tool || detectedIntent);
+  } catch (error) {
+    console.error("Personal intelligence update skipped:", error?.message || error);
+  }
   let toolResult=null; let verification=null; let responseText="";
   try{
     // Greetings must never depend on Gemini/network. This keeps basic voice/chat alive even when the AI provider is unavailable.
