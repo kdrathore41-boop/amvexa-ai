@@ -1,4 +1,4 @@
-const CACHE = "amvexa-v7";
+const CACHE = "amvexa-v8";
 const ASSETS = ["/", "/index.html", "/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", event => {
