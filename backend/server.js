@@ -1334,6 +1334,7 @@ app.post("/api/voice/transcribe", async (req,res)=>{
     return res.json({success:true,response:responseText,tool:null,verification:{verified:true,reason:"deterministic greeting"}});
   }
 
+  try {
   addConversation("user",message);
   const detectedIntent = detectIntent(message);
   // A single user message can contain multiple independent intents.
@@ -1430,6 +1431,10 @@ app.post("/api/voice/transcribe", async (req,res)=>{
   let proactive;
   try { proactive=jarvisContext(); } catch(error) { console.error("JARVIS context response failed:", error?.message || error); proactive={nextAction:null,context:{},highPriorityTasks:[]}; }
   return res.json({success:true,response:responseText,tool:plan.tool||null,verification,data:{understanding:{intent:plan.tool==="create_task"?"planning":plan.tool==="complete_task"?"task_complete":plan.tool==="get_tasks"?"tasks":detectedIntent},execution:{tool:plan.tool||null,action:toolResult?.action||null,verified:Boolean(verification?.verified),verification:verification||null},jarvis:{nextAction:proactive.nextAction,context:proactive.context,highPriorityTasks:proactive.highPriorityTasks}}});
+  } catch (error) {
+    console.error("Chat route error:", error?.stack || error?.message || error);
+    return res.status(500).json({success:false,error:"Chat route internal error",detail:String(error?.message || error || "Unknown error").slice(0,500)});
+  }
 });
 
 persistenceReady = initializePersistence();
