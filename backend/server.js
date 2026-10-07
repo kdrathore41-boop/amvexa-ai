@@ -627,7 +627,12 @@ function updatePersonalAlgorithm(message, intent) {
   const text = String(message || "").trim();
   if (!text) return intelligence;
   const lower = text.toLowerCase();
-  intelligence.stats = intelligence.stats || {};
+  // Be defensive against older/partial persisted intelligence state.
+  if (!intelligence || typeof intelligence !== "object") intelligence = {};
+  intelligence.stats = intelligence.stats && typeof intelligence.stats === "object" ? intelligence.stats : {};
+  intelligence.patterns = Array.isArray(intelligence.patterns) ? intelligence.patterns : [];
+  intelligence.preferences = Array.isArray(intelligence.preferences) ? intelligence.preferences : [];
+  intelligence.signals = Array.isArray(intelligence.signals) ? intelligence.signals : [];
   intelligence.stats.messages = (intelligence.stats.messages || 0) + 1;
   const counterMap = { task_complete: "taskRequests", tasks: "taskRequests", create_task: "taskRequests", planning: "planningRequests", memory: "memoryRequests", research: "researchRequests" };
   if (counterMap[intent]) intelligence.stats[counterMap[intent]] = (intelligence.stats[counterMap[intent]] || 0) + 1;
