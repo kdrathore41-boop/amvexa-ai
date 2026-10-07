@@ -1225,6 +1225,19 @@
 
       addMessage("user", message);
 
+      // Wake words are control signals, not AI requests. Keep them local so a
+      // transient backend/runtime failure can never turn a simple wake-up into
+      // a 500. The real command continues through the normal brain pipeline.
+      if (/^(?:amvexa|alexa|अलेक्सा|अमवेक्सा)$/iu.test(message)) {
+        const wakeReply = "नमस्ते जी। Amvexa यहाँ है।";
+        addMessage("assistant", wakeReply);
+        speak(wakeReply);
+        statusText.textContent = "Online";
+        voiceCommand = false;
+        sendButton.disabled = false;
+        return;
+      }
+
       // Ask once, from a real user action, so proactive reminders can use native notifications.
       if ("Notification" in window && Notification.permission === "default") {
         enableNotifications().catch(() => {});
