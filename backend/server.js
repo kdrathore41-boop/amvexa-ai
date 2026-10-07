@@ -1319,7 +1319,7 @@ app.post("/api/voice/transcribe", async (req,res)=>{
     return res.status(502).json({success:false,error:`Voice transcription failed at ${stage}: ${message}`,stage});
   }finally{clearTimeout(timeout);}
 });
-app.post("/api/chat", async (req,res)=>{
+// Final API safety net: never expose an opaque 500 to the client.\napp.use((error, req, res, next) => {\n  console.error("Unhandled API error:", error?.stack || error?.message || error);\n  if (res.headersSent) return next(error);\n  if (req.path.startsWith("/api/")) return res.status(500).json({success:false,error:"Backend internal error",detail:String(error?.message || error || "Unknown error").slice(0,500)});\n  next(error);\n});\n\napp.post("/api/chat", async (req,res)=>{
   const message=String(req.body?.message||"").trim();
   if(!message)return res.status(400).json({success:false,error:"Message is required"});
 
