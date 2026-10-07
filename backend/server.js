@@ -1335,7 +1335,7 @@ app.post("/api/chat", async (req,res)=>{
   // planning and Gemini. If the API route is reachable, a greeting must get
   // a deterministic 200 response immediately.
   const earlyGreeting = /^(?:hello|hi|hey|namaste|हेलो|हैलो|नमस्ते|नमस्कार|ही\s+अलेक्सा|हे\s+अलेक्सा|हाय\s+अलेक्सा|hi\s+alexa|hey\s+alexa|alexa|अलेक्सा|amvexa)(?:\s+|$)/i.test(message);
-  const deterministicIdentity = /^(?:i\s+am|i\s*am|मैं\s+|mai\s+|main\s+)[^.!?।]{1,80}$/i.test(message);
+  const deterministicIdentity = /^(?:i\s+am|i\s*am|आई\s*एम|आई\s+एम|मैं\s+|mai\s+|main\s+)[^.!?।]{1,80}$/i.test(message);
   if (deterministicIdentity) {
     const responseText = "समझ गया। मैं Amvexa हूँ और आपकी बात सुन रहा हूँ।";
     try { addConversation("user", message); } catch (_) {}
