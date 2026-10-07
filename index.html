@@ -682,6 +682,8 @@
     let idleTalkCooldown = 0;
     let voiceRestartTimer = null;
     let voiceRetryCount = 0;
+    let voiceFallbackTimer = null;
+    let voiceFallbackPending = false;
 
     // Do not run a separate health request before chat. On weak/mobile
     // connections that extra request can compete with the first real command.
@@ -794,15 +796,7 @@
         // command. Do not keep retrying the same broken recognition instance.
         // Fall back to the already-implemented MediaRecorder transcription path.
         if (wasCurrent && !gotResult && !userStopped) {
-          showToast("Voice service reconnecting…");
-          setTimeout(() => {
-            if (recognition || listening || sendButton.disabled) return;
-            startRecorderVoice().catch(error => {
-              voiceButton.disabled = false;
-              statusText.textContent = "Online";
-              showToast("MIC ERROR: " + String(error?.message || "Microphone unavailable"));
-            });
-          }, 250);
+          scheduleVoiceFallback();
           return;
         }
 
@@ -819,14 +813,7 @@
         // the user with a dead mic button. Never do this after a real result
         // or an intentional user stop.
         if (!gotResult && !userStopped) {
-          statusText.textContent = "Reconnecting...";
-          setTimeout(() => {
-            if (recognition || listening || sendButton.disabled) return;
-            startRecorderVoice().catch(error => {
-              statusText.textContent = "Online";
-              showToast("MIC ERROR: " + String(error?.message || "Microphone unavailable"));
-            });
-          }, 250);
+          scheduleVoiceFallback();
           return;
         }
 
@@ -840,6 +827,24 @@
     let voiceStream = null;
     let voiceSession = 0;
     let voiceStopPromise = null;
+
+    function scheduleVoiceFallback() {
+      if (voiceFallbackPending) return;
+      voiceFallbackPending = true;
+      showToast("Voice service reconnecting…");
+      if (voiceFallbackTimer) clearTimeout(voiceFallbackTimer);
+      voiceFallbackTimer = setTimeout(() => {
+        voiceFallbackTimer = null;
+        voiceFallbackPending = false;
+        if (recognition || listening || sendButton.disabled) return;
+        startRecorderVoice().catch(error => {
+          voiceButton.disabled = false;
+          listening = false;
+          statusText.textContent = "Online";
+          showToast("MIC ERROR: " + String(error?.message || "Microphone unavailable"));
+        });
+      }, 250);
+    }
 
     function releaseVoiceStream() {
       if (voiceStream) {
