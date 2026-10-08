@@ -492,7 +492,11 @@ function completeTask(reference) {
     const openTasks = tasks.filter(t => t.status !== "done");
     if (openTasks.length === 1) task = openTasks[0];
   }
-  if (!task && !String(reference || "").trim()) {\n    const openTasks = tasks.filter(t => t.status !== "done");\n    if (openTasks.length === 1) task = openTasks[0];\n  }\n  if (!task) return { success: false, error: "Task not found" };
+  if (!task && !String(reference || "").trim()) {
+    const openTasks = tasks.filter(t => t.status !== "done");
+    if (openTasks.length === 1) task = openTasks[0];
+  }
+  if (!task) return { success: false, error: "Task not found" };
   task.status = "done"; task.completedAt = new Date().toISOString(); writeJson(FILES.tasks, tasks); syncGoals(); return { success: true, task };
 }
 
