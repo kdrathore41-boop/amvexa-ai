@@ -200,8 +200,12 @@ function queuePersistentWrite(file, value) {
 async function initializePersistence() {
   const databaseUrl = process.env.DATABASE_URL || "";
   if (!databaseUrl) {
-    persistenceStatus = { enabled: false, ready: true, error: "DATABASE_URL is not configured; using ephemeral local storage." };
-    console.warn(persistenceStatus.error);
+    const message = "DATABASE_URL is not configured; durable persistence is required for production.";
+    persistenceStatus = { enabled: false, ready: false, error: message };
+    if (process.env.NODE_ENV === "production" || process.env.RENDER === "true") {
+      throw new Error(message);
+    }
+    console.warn(message + " Using local storage only in non-production.");
     return;
   }
   try {
@@ -252,8 +256,11 @@ async function initializePersistence() {
     }
     console.log("Durable state persistence ready.");
   } catch (error) {
-    persistenceStatus = { enabled: true, ready: true, error: error?.message || String(error) };
+    persistenceStatus = { enabled: true, ready: false, error: error?.message || String(error) };
     console.error("Durable persistence initialization failed:", persistenceStatus.error);
+    if (process.env.NODE_ENV === "production" || process.env.RENDER === "true") {
+      throw error;
+    }
   }
 }
 
@@ -1484,7 +1491,14 @@ app.post("/api/chat", async (req,res)=>{
   }
 });
 
-persistenceReady = initializePersistence();
+persistenceReady = initializePersistence().catch(error => {
+  console.error("Amvexa cannot start safely without durable persistence:", error?.stack || error?.message || error);
+  if (process.env.NODE_ENV === "production" || process.env.RENDER === "true") {
+    process.exitCode = 1;
+    setTimeout(() => process.exit(1), 100);
+  }
+  throw error;
+});
 persistenceReady.finally(() => {
   console.log("Amvexa state initialization complete.");
   setTimeout(() => runBrainCycle().catch(() => {}), 5000);
