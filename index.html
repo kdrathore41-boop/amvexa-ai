@@ -977,11 +977,27 @@
         await startRecorderVoice();
       } catch (error) {
         recognition = null;
-        voiceButton.disabled = false;
         listening = false;
         voiceButton.textContent = "◉";
         statusText.textContent = "Online";
-        showToast("MIC ERROR: " + String(error?.message || "Microphone unavailable"));
+
+        // Android Chrome can reject a fresh SpeechRecognition.start() after
+        // a previous successful session. Do not leave the second tap dead:
+        // switch to the recorder/transcription path automatically.
+        const message = String(error?.message || "");
+        if (/not.?allowed|permission|denied/i.test(message)) {
+          voiceButton.disabled = false;
+          showToast("Microphone permission blocked. Chrome में microphone Allow करें.");
+          return;
+        }
+
+        try {
+          voiceButton.disabled = true;
+          await startRecorderVoice();
+        } catch (fallbackError) {
+          voiceButton.disabled = false;
+          showToast("MIC ERROR: " + String(fallbackError?.message || "Microphone unavailable"));
+        }
       }
     }
 
