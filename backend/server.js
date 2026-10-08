@@ -539,13 +539,9 @@ function detectIntent(message) {
   if (/\b(remind|reminder|yaad dilana|yaad dila|याद दिलाना|याद दिलाओ|bhoolna mat|मत भूलना)\b/i.test(text)) return "reminder";
   // Goal execution must run before task-completion detection too: goal titles can contain words like "complete" and "task".
   // Questions about an already-active goal must use existing context, not create a new goal.
-  if (/(?:\\b(goal|goals)\\b|मेरा\\s+गोल|मेरा\\s+goal|my\\s+goal|मेरा\\s+लक्ष्य|my\\s+target)/i.test(text) &&
-      /(?:आज|अभी|मुझे\\s+क्या|क्या\\s+करना|अगला|next|today|what\\s+should|what\\s+do|how\\s+should)/i.test(text) &&
-      /(?:\\?|\\b(kya|karna|should|do|next)\\b)/i.test(text)) return "assistant_mode";
-  if (/(?:\b(goal|goals)\b|मेरा\s+गोल|मेरा\s+goal|my\s+goal|मेरा\s+लक्ष्य|my\s+target)/i.test(text)) return "goal_execution";
-  // A bare completion command applies to the only active task.\n  if (/^(?:done|complete|finished|पूरा|पूर्ण|हो गया|हो गई|कर दिया|कर दी)[.!?।\s]*$/i.test(text)) return "task_complete";
-  if (/\b(complete|finish|mark)\b.*\b(task|todo)\b/.test(text) || /\b(task|todo)\b\s+.+\b(done|complete|finished)\b/.test(text) || /\b(done|complete|finished)\b\s+(?:the\s+)?(?:task|todo)\b/.test(text) || /(?:इस|उस|यह|वह)\s+(?:काम|टास्क|कार्य)\s+(?:को\s+)?(?:पूरा|पूर्ण|done|complete)\s*(?:करो|करें|मानो|मान लें|हुआ|हुई)?/i.test(text) || /(?:काम|टास्क|कार्य)\s+(?:पूरा|पूर्ण)\s*(?:करो|करें|मानो|मान लें|हुआ|हुई)?/i.test(text) || /\b(?:complete|finish|done)\b[\s\S]{0,80}\b(?:mark|complete|done)\b/i.test(text)) return "task_complete";
-  // Goal execution must run before generic task/planning detection: the goal text itself contains "task".
+  if (/(?:\b(goal|goals)\b|मेरा\s+गोल|मेरा\s+goal|my\s+goal|मेरा\s+लक्ष्य|my\s+target)/i.test(text) &&
+      /(?:आज|अभी|मुझे\s+क्या|क्या\s+करना|अगला|next|today|what\s+should|what\s+do|how\s+should)/i.test(text) &&
+      /(?:\?|\b(kya|karna|should|do|next)\b)/i.test(text)) return "assistant_mode";
   if (/(?:\b(goal|goals)\b|मेरा\s+गोल|मेरा\s+goal|my\s+goal|मेरा\s+लक्ष्य|my\s+target)/i.test(text)) return "goal_execution";
   if (/^(?:मेरा|मेरे|मेरी|my|mere)\s+(?:(?:active|open|pending)|(?:एक्टिव|खुले|पेंडिंग))\s*(?:tasks?|todos?|काम|टास्क|टूडू|कार्य)\s+(?:दिखाओ|दिखाइए|बताओ|बताइए|show|list)/i.test(text) || (/\b(?:active|open|pending|एक्टिव|खुले|पेंडिंग)\b.*(?:tasks?|todos?|काम|टास्क|टूडू|कार्य)/i.test(text) && /(?:दिखाओ|दिखाइए|बताओ|बताइए|show|list)/i.test(text)) || /\b(show|list|my|mere)\b.*\b(tasks?|todos?)\b/.test(text) || /(mere|aaj|aj|today|jaruri|zaroori|important).*(kaam|task|todo)/.test(text) || /(kaam|tasks?|todos?).*(batao|dikhao|dikhaiye|bataiye|show|list)/.test(text) || /(?:मुझे|मेरे|मेरा|आज|अभी|अपने)\s*(?:का|के|की)?\s*(?:सारे\s*)?(?:काम|टास्क|टूडू|कार्य)\s*(?:याद\s*दिलाओ|बता(?:ओ|इए)|दिखा(?:ओ|इए)|बताइए|दिखाइए)/i.test(text) || /(?:आज|अभी)\s*के?\s*(?:काम|टास्क|कार्य)/i.test(text)) return "tasks";
   if (/(?:^|\s)(?:ek|एक)?\s*(?:task|tast|todo|टास्क|कार्य)\s+(?:add|create|creat|banao|बनाओ|bana|बन|बना\s*दो|जोड़|जोड़)\s*(?:karo|karna|do|करो|करना|करें|दो)?(?=\s|[:;,.-]|$)/i.test(text) || /\b(?:add|create|creat|make|set|new)\s+(?:a\s+)?(?:task|tast|todo|टास्क|कार्य)\b/i.test(text) || /^\s*(?:kal|tomorrow|aaj|today|कल|आज)\b.+\b(?:karna|karne|complete|finish|niptana|niptane|करना|करने|पूरा|समाप्त)\b/i.test(text)) return "planning";
