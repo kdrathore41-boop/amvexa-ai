@@ -538,6 +538,10 @@ function detectIntent(message) {
   if (/\b(remember|save|store|note|yaad rakh(?:o|na)?)\b/.test(text) || /\bmera naam\s+.+?(?:hai|yaad rakh)/i.test(text) || /\b(my name is)\b/i.test(text) || /मेरा नाम\s+.+?(?:है|याद रख|याद रखना|याद रखो)(?=\s|[।.!?]|$)/i.test(text) || /याद\s+रख(?:ो|ना|िए)?/i.test(text)) return "memory";
   if (/\b(remind|reminder|yaad dilana|yaad dila|याद दिलाना|याद दिलाओ|bhoolna mat|मत भूलना)\b/i.test(text)) return "reminder";
   // Goal execution must run before task-completion detection too: goal titles can contain words like "complete" and "task".
+  // Questions about an already-active goal must use existing context, not create a new goal.
+  if (/(?:\\b(goal|goals)\\b|मेरा\\s+गोल|मेरा\\s+goal|my\\s+goal|मेरा\\s+लक्ष्य|my\\s+target)/i.test(text) &&
+      /(?:आज|अभी|मुझे\\s+क्या|क्या\\s+करना|अगला|next|today|what\\s+should|what\\s+do|how\\s+should)/i.test(text) &&
+      /(?:\\?|\\b(kya|karna|should|do|next)\\b)/i.test(text)) return "assistant_mode";
   if (/(?:\b(goal|goals)\b|मेरा\s+गोल|मेरा\s+goal|my\s+goal|मेरा\s+लक्ष्य|my\s+target)/i.test(text)) return "goal_execution";
   // A bare completion command applies to the only active task.\n  if (/^(?:done|complete|finished|पूरा|पूर्ण|हो गया|हो गई|कर दिया|कर दी)[.!?।\s]*$/i.test(text)) return "task_complete";
   if (/\b(complete|finish|mark)\b.*\b(task|todo)\b/.test(text) || /\b(task|todo)\b\s+.+\b(done|complete|finished)\b/.test(text) || /\b(done|complete|finished)\b\s+(?:the\s+)?(?:task|todo)\b/.test(text) || /(?:इस|उस|यह|वह)\s+(?:काम|टास्क|कार्य)\s+(?:को\s+)?(?:पूरा|पूर्ण|done|complete)\s*(?:करो|करें|मानो|मान लें|हुआ|हुई)?/i.test(text) || /(?:काम|टास्क|कार्य)\s+(?:पूरा|पूर्ण)\s*(?:करो|करें|मानो|मान लें|हुआ|हुई)?/i.test(text) || /\b(?:complete|finish|done)\b[\s\S]{0,80}\b(?:mark|complete|done)\b/i.test(text)) return "task_complete";
