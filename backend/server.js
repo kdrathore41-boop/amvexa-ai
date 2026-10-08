@@ -1345,7 +1345,7 @@ app.post("/api/chat", async (req,res)=>{
       const toolResult = completeTask("");
       const verification = verifyTool("complete_task", toolResult);
       if (verification.verified) {
-        const responseText = "Done. Task \\"" + toolResult.task.title + "\\" complete mark ho gaya. Execution verified.";
+        const responseText = "Done. Task \"" + toolResult.task.title + "\" complete mark ho gaya. Execution verified.";
         try { addConversation("user", message); } catch (_) {}
         try { addConversation("assistant", responseText); } catch (_) {}
         return res.json({success:true,response:responseText,tool:"complete_task",verification});
