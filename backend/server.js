@@ -1337,6 +1337,26 @@ app.post("/api/chat", async (req,res)=>{
   const message=String(req.body?.message||"").trim();
   if(!message)return res.status(400).json({success:false,error:"Message is required"});
 
+  // Deterministic bare completion path: "Done" must complete the only active task
+  // without passing through the generative/assistant path. This keeps voice completion
+  // reliable even if another part of the chat pipeline has a transient failure.
+  if (/^(?:done|complete|finished|पूरा|पूर्ण|हो गया|हो गई|कर दिया|कर दी)[.!?।\\s]*$/i.test(message)) {
+    try {
+      const toolResult = completeTask("");
+      const verification = verifyTool("complete_task", toolResult);
+      if (verification.verified) {
+        const responseText = "Done. Task \\"" + toolResult.task.title + "\\" complete mark ho gaya. Execution verified.";
+        try { addConversation("user", message); } catch (_) {}
+        try { addConversation("assistant", responseText); } catch (_) {}
+        return res.json({success:true,response:responseText,tool:"complete_task",verification});
+      }
+      return res.json({success:true,response:"Abhi koi active task complete karne ke liye nahi mila.",tool:"complete_task",verification});
+    } catch (error) {
+      console.error("Deterministic task completion error:", error?.stack || error?.message || error);
+      return res.status(500).json({success:false,error:"Task completion failed",detail:String(error?.message || error || "Unknown error").slice(0,500)});
+    }
+  }
+
   // Keep the most basic assistant path completely independent of persistence,
   // planning and Gemini. If the API route is reachable, a greeting must get
   // a deterministic 200 response immediately.
