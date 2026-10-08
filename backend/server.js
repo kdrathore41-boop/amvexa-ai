@@ -426,6 +426,7 @@ function findTask(reference) {
 
 function normalizeTaskReference(message) {
   let text = String(message || "")
+    .replace(/^\s*(?:done|complete|finished|पूरा|पूर्ण|हो गया|हो गई|कर दिया|कर दी)[.!?।\s]*$/i, "")
     .replace(/^\s*(?:please\s+)?(?:complete|finish|done|mark)\s+(?:the\s+)?(?:task|todo)\s*/i, "")
     .replace(/^\s*(?:is\s+)?(?:task|todo)\s*/i, "")
     .replace(/^\s*[:,-]+\s*/, "")
