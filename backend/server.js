@@ -1376,7 +1376,8 @@ app.post("/api/chat", async (req,res)=>{
   }
 
   try {
-  addConversation("user",message);
+  // Conversation logging must never be able to turn a valid chat request into HTTP 500.
+  try { addConversation("user", message); } catch (error) { console.error("User conversation write failed:", error?.message || error); }
   const detectedIntent = detectIntent(message);
   // A single user message can contain multiple independent intents.
   // Split the common "remember my name + set a reminder" pattern so memory
