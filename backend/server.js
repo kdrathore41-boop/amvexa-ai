@@ -1428,7 +1428,7 @@ app.post("/api/chat", async (req,res)=>{
     && /(?:kya|what|who|hai|is|है|कौन|\?)/i.test(message);
   if (asksUserName) {
     const remembered = memorySearch(message, 5).find(item => /^User ka naam\s+/i.test(String(item.content || "")));
-    const nameMatch = remembered && String(remembered.content).match(/^User ka naam\\s+(.+)$/i);
+    const nameMatch = remembered && String(remembered.content).match(/^User ka naam\s+(.+)$/i);
     const responseText = nameMatch
       ? "आपका नाम " + nameMatch[1].trim() + " है।"
       : "आपका नाम अभी मेरी saved memory में नहीं मिला है।";
