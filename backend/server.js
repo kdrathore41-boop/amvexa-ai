@@ -1184,7 +1184,7 @@ async function runBrainCycle() {
     const matchingRecentAlert=targetText && conversation.some(turn => {
       if(turn.role!=="assistant") return false;
       const text=String(turn.content||"").toLowerCase();
-      return text.includes(targetText) && /(overdue|deadline|due|task .*pending|deadline nikal chuki)/i.test(text);
+      return text.includes(targetText) && (signal.type==="deadline" ? /(overdue|deadline nikal chuki|deadline passed)/i.test(text) : signal.type==="deadline_soon" ? /(due soon|1 ghante ke andar due|deadline approaching)/i.test(text) : false);
     });
     if(matchingRecentAlert){
       context.jarvis={...(context.jarvis||{}),backgroundBrain:{status:"suppressed_duplicate",at:new Date().toISOString(),fingerprint:signalFingerprint,signal:signal.type,target:signal.target}};
