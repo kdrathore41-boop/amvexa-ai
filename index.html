@@ -1153,12 +1153,13 @@
           window.amvexaJarvisDecision = decision;
           renderJarvisDecision(decision);
         }
-        const key = "proactive|" + (signal.type || "signal") + "|" + (signal.reason || "") + "|" + (decision?.taskId || signal.suggestedAction?.taskId || "") + "|" + data.message;
+        const key = "proactive|" + (signal.type || "signal") + "|" + (signal.reason || "") + "|" + (decision?.taskId || signal.suggestedAction?.taskId || signal.suggestedAction?.goalId || decision?.goalId || signal.target || decision?.target || "");
         const now = Date.now();
         const lastKey = sessionStorage.getItem("amvexa_proactive");
         const lastAt = Number(sessionStorage.getItem("amvexa_proactive_at") || 0);
         // Avoid repeating the same spoken signal while the user has not acted on it.
-        if (lastKey === key && now - lastAt < 30 * 60 * 1000) return;
+        // A pending signal is surfaced once per tab until its underlying task/goal changes.
+        if (lastKey === key) return;
 
         sessionStorage.setItem("amvexa_proactive", key);
         sessionStorage.setItem("amvexa_proactive_at", String(now));
@@ -1167,14 +1168,8 @@
         speak(data.message);
 
         // JARVIS/FRIDAY: surface the next useful operation, not just a reminder.
-        if (decision?.operation === "work_on_task" && decision.target) {
-          setCommand("इस काम पर आगे बढ़ते हैं: " + decision.target);
-        } else if (decision?.operation === "plan_goal" || signal.type === "goal_followup") {
-          setCommand("मेरे active goal का अगला concrete task तय करो");
-          fetch(API_URL + "/api/jarvis/step", {method:"POST"})
-            .then(() => refreshTaskStatus())
-            .catch(() => {});
-        }
+        // Do not put proactive suggestions into the message input or execute goal steps
+        // in the background. The user must explicitly choose the visible next-action control.
       } catch (_) {}
     }
 
