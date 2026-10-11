@@ -97,7 +97,7 @@ if (PUSH_READY) {
   setInterval(() => { sendDueTaskPushes().catch(error => console.error("Push scheduler error:", error?.message || error)); }, 30000);
 }
 
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   if (!req.path.startsWith("/api/")) return next();
 
   const key = req.ip || "unknown";
@@ -114,6 +114,20 @@ app.use((req, res, next) => {
 
   active.push(now);
   buckets.set(key, active);
+
+  // Health must remain readable even when durable storage is unavailable.
+  // Every data/chat API waits until PostgreSQL state has been restored so an
+  // early request cannot read empty memory or overwrite state during startup.
+  if (req.path === "/api/health") return next();
+  try {
+    await persistenceReady;
+  } catch (error) {
+    return res.status(503).json({
+      success: false,
+      error: "Durable storage is not ready; request was not processed.",
+      persistence: persistenceStatus
+    });
+  }
   next();
 });
 
