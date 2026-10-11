@@ -306,13 +306,18 @@ function logAction(tool, args, result) {
 
 function normalizePersonalMemory(content) {
   let value = String(content || "").trim();
-  value = value.replace(/^User ka naam\\s+(.+?)(?:\\s+(?:है|hai|is|h))?(?:\\s+(?:याद\\s*रख(?:ो|ना|िए)|yaad\\s*rakh(?:o|na)?))?\\s*[।.!?]*$/i,
-    (_, name) => "User ka naam " + name.trim());
-  value = value.replace(/^Mere bete ka naam\\s+(.+?)(?:\\s+(?:है|hai|is|h))?(?:\\s+(?:याद\\s*रख(?:ो|ना|िए)|yaad\\s*rakh(?:o|na)?))?\\s*[।.!?]*$/i,
-    (_, name) => "Mere bete ka naam " + name.trim());
+
+  // Canonicalize common personal facts without double-escaped regex tokens.
+  // This keeps legacy entries such as "User ka naam Kapil Rathore hai, yaad rakho"
+  // clean and makes subsequent recall deterministic.
+  const userName = value.match(/^User ka naam\s+(.+?)(?:\s+(?:है|hai|is|h))?(?:\s+(?:याद\s*रख(?:ो|ना|िए)|yaad\s*rakh(?:o|na)?))?\s*[।.!?]*$/i);
+  if (userName) return "User ka naam " + userName[1].trim();
+
+  const sonName = value.match(/^Mere bete ka naam\s+(.+?)(?:\s+(?:है|hai|is|h))?(?:\s+(?:याद\s*रख(?:ो|ना|िए)|yaad\s*rakh(?:o|na)?))?\s*[।.!?]*$/i);
+  if (sonName) return "Mere bete ka naam " + sonName[1].trim();
+
   return value;
 }
-
 function remember(content, kind = "saved-memory") {
   const normalized = normalizePersonalMemory(content);
   const item = { id: `mem_${Date.now()}`, role: "memory", content: normalized, kind, importance: kind === "preference" ? 6 : 5, at: new Date().toISOString() };
