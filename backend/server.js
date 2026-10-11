@@ -1176,9 +1176,23 @@ async function runBrainCycle() {
     }
     brainLastSignal=signal;
     if(!signal) return;
+    const signalFingerprint=[signal.type||"",signal.reason||"",signal.target||""].join("|");
+    // Older releases may already have written this overdue alert many times.
+    // Treat a matching alert in persisted conversation history as already surfaced,
+    // even if the brain fingerprint was overwritten by another context operation.
+    const targetText=String(signal.target||"").trim().toLowerCase();
+    const matchingRecentAlert=targetText && conversation.some(turn => {
+      if(turn.role!=="assistant") return false;
+      const text=String(turn.content||"").toLowerCase();
+      return text.includes(targetText) && (signal.type==="deadline" ? /(overdue|deadline nikal chuki|deadline passed)/i.test(text) : signal.type==="deadline_soon" ? /(due soon|1 ghante ke andar due|deadline approaching)/i.test(text) : false);
+    });
+    if(matchingRecentAlert){
+      context.jarvis={...(context.jarvis||{}),backgroundBrain:{status:"suppressed_duplicate",at:new Date().toISOString(),fingerprint:signalFingerprint,signal:signal.type,target:signal.target}};
+      writeJson(FILES.context,context);
+      return;
+    }
     // Speak only once for the same unresolved signal. This fingerprint is stored
     // with persistent context so an overdue task cannot spam the conversation on each cycle.
-    const signalFingerprint=[signal.type||"",signal.reason||"",signal.target||""].join("|");
     if(context.jarvis?.backgroundBrain?.fingerprint===signalFingerprint) return;
     const last=brainLastTalkAt?Date.parse(brainLastTalkAt):0;
     if(last && now-last<BRAIN_TALK_COOLDOWN_MS) return;
@@ -1407,6 +1421,20 @@ app.post("/api/chat", async (req,res)=>{
     try { addConversation("user", message); } catch (_) {}
     try { addConversation("assistant", responseText); } catch (_) {}
     return res.json({success:true,response:responseText,tool:null,verification:{verified:true,reason:"deterministic greeting"}});
+  }
+
+  // Deterministic personal-name recall: do not ask Gemini to format a simple saved fact.
+  const asksUserName = /(?:mera naam|my name|what is my name|what's my name|who am i|मेरा नाम)/i.test(message)
+    && /(?:kya|what|who|hai|is|है|कौन|\?)/i.test(message);
+  if (asksUserName) {
+    const remembered = memorySearch(message, 5).find(item => /^User ka naam\s+/i.test(String(item.content || "")));
+    const nameMatch = remembered && String(remembered.content).match(/^User ka naam\s+(.+)$/i);
+    const responseText = nameMatch
+      ? "आपका नाम " + nameMatch[1].trim() + " है।"
+      : "आपका नाम अभी मेरी saved memory में नहीं मिला है।";
+    try { addConversation("user", message); } catch (_) {}
+    try { addConversation("assistant", responseText); } catch (_) {}
+    return res.json({success:true,response:responseText,tool:"memory_recall",verification:{verified:true,reason:"deterministic personal-name recall"}});
   }
 
   try {
