@@ -1193,7 +1193,6 @@ async function runBrainCycle() {
     }
     // Speak only once for the same unresolved signal. This fingerprint is stored
     // with persistent context so an overdue task cannot spam the conversation on each cycle.
-    const signalFingerprint=[signal.type||"",signal.reason||"",signal.target||""].join("|");
     if(context.jarvis?.backgroundBrain?.fingerprint===signalFingerprint) return;
     const last=brainLastTalkAt?Date.parse(brainLastTalkAt):0;
     if(last && now-last<BRAIN_TALK_COOLDOWN_MS) return;
@@ -1428,7 +1427,7 @@ app.post("/api/chat", async (req,res)=>{
   const asksUserName = /(?:mera naam|my name|what is my name|what's my name|who am i|मेरा नाम)/i.test(message)
     && /(?:kya|what|who|hai|is|है|कौन|\?)/i.test(message);
   if (asksUserName) {
-    const remembered = memorySearch(message, 5).find(item => /^User ka naam\\s+/i.test(String(item.content || "")));
+    const remembered = memorySearch(message, 5).find(item => /^User ka naam\s+/i.test(String(item.content || "")));
     const nameMatch = remembered && String(remembered.content).match(/^User ka naam\\s+(.+)$/i);
     const responseText = nameMatch
       ? "आपका नाम " + nameMatch[1].trim() + " है।"
