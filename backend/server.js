@@ -307,14 +307,18 @@ function logAction(tool, args, result) {
 function normalizePersonalMemory(content) {
   let value = String(content || "").trim();
 
-  // Canonicalize common personal facts without double-escaped regex tokens.
-  // This keeps legacy entries such as "User ka naam Kapil Rathore hai, yaad rakho"
-  // clean and makes subsequent recall deterministic.
-  const userName = value.match(/^User ka naam\s+(.+?)(?:\s+(?:है|hai|is|h))?(?:\s+(?:याद\s*रख(?:ो|ना|िए)|yaad\s*rakh(?:o|na)?))?\s*[।.!?]*$/i);
-  if (userName) return "User ka naam " + userName[1].trim();
+  // Canonicalize common personal facts, including trailing "hai/है" and
+  // "yaad rakho/याद रखो" phrases, without double-escaped regex tokens.
+  const cleanName = (raw) => String(raw || "")
+    .replace(/\s*,?\s*(?:yaad\s*rakh(?:o|na)?|याद\s*रख(?:ो|ना|िए)?)\s*[।.!?]*$/i, "")
+    .replace(/\s*,?\s*(?:hai|is|h|है)[,\s।.!?]*$/i, "")
+    .trim();
 
-  const sonName = value.match(/^Mere bete ka naam\s+(.+?)(?:\s+(?:है|hai|is|h))?(?:\s+(?:याद\s*रख(?:ो|ना|िए)|yaad\s*rakh(?:o|na)?))?\s*[।.!?]*$/i);
-  if (sonName) return "Mere bete ka naam " + sonName[1].trim();
+  const userName = value.match(/^User ka naam\s+(.+)$/i);
+  if (userName) return "User ka naam " + cleanName(userName[1]);
+
+  const sonName = value.match(/^Mere bete ka naam\s+(.+)$/i);
+  if (sonName) return "Mere bete ka naam " + cleanName(sonName[1]);
 
   return value;
 }
