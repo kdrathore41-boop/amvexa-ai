@@ -1176,6 +1176,10 @@ async function runBrainCycle() {
     }
     brainLastSignal=signal;
     if(!signal) return;
+    // Speak only once for the same unresolved signal. This fingerprint is stored
+    // with persistent context so an overdue task cannot spam the conversation on each cycle.
+    const signalFingerprint=[signal.type||"",signal.reason||"",signal.target||""].join("|");
+    if(context.jarvis?.backgroundBrain?.fingerprint===signalFingerprint) return;
     const last=brainLastTalkAt?Date.parse(brainLastTalkAt):0;
     if(last && now-last<BRAIN_TALK_COOLDOWN_MS) return;
     if(!cognitiveDecision.speak && cognitiveAttention.type!=="deadline" && cognitiveAttention.type!=="deadline_soon") return;
@@ -1201,7 +1205,7 @@ State: ${JSON.stringify({nextAction:state.nextAction,situation:state.situation,a
     cognitiveLearn({type:cognitiveAttention.type,target:cognitiveAttention.target});
     brainLastTalkAt=new Date().toISOString();
     await sendBrainPush(message,signal);
-    context.jarvis={...(context.jarvis||{}),backgroundBrain:{status:"spoken",at:brainLastTalkAt,signal:signal.type,target:signal.target,message}};
+    context.jarvis={...(context.jarvis||{}),backgroundBrain:{status:"spoken",at:brainLastTalkAt,fingerprint:signalFingerprint,signal:signal.type,target:signal.target,message}};
     writeJson(FILES.context,context);
   } catch(error) {
     console.error("Background brain cycle error:",error?.message||error);
@@ -1487,7 +1491,7 @@ app.post("/api/chat", async (req,res)=>{
         responseText=found.length?found.map((m,i)=>`${i+1}. ${m.content}`).join("\n"):"Abhi mujhe matching memory nahi mili.";
       }
     }else if(plan.tool==="web_search"){responseText=formatWebResponse(toolResult);}
-    else if(plan.tool==="music_search"&&verification?.verified){responseText="Done — your music playlist is ready.";}
+    else if(plan.tool==="music_search"&&verification?.verified){responseText="Main is chat se gaana seedha play nahi kar paaya. Yeh playlist link hai: https://youtube.com/playlist?list=PL-ER7jNwYADztaCaTFnTMGBoGWaIUQ0K4&si=6o-Ln9w2WHvlUKgt";}
     else if(plan.tool==="create_task"&&verification?.verified){
       responseText="Task set kar diya: \"" + toolResult.task.title + "\". Priority: " + toolResult.task.priority + ". Execution verified.";
     }else if(plan.tool==="postpone_task"&&verification?.verified){
