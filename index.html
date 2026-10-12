@@ -1318,27 +1318,37 @@
         speak(assistantMessage);
 
         if (action?.type === "music" && action.url) {
-          const musicLink = document.createElement("a");
-          musicLink.href = action.url;
-          musicLink.target = "_blank";
-          musicLink.rel = "noopener noreferrer";
-          musicLink.textContent = "🎵 मेरी Music Playlist खोलें";
-          musicLink.style.display = "inline-block";
-          musicLink.style.marginTop = "10px";
-          musicLink.style.fontWeight = "700";
-          musicLink.style.textDecoration = "underline";
-
+          // Keep music inside Amvexa instead of redirecting the whole app to YouTube.
+          const playlistMatch = String(action.url).match(/[?&]list=([^&]+)/i);
+          const playlistId = playlistMatch ? decodeURIComponent(playlistMatch[1]) : "";
           const lastMessage = conversation.lastElementChild;
-          if (lastMessage) {
-            const content = lastMessage.querySelector("div:last-child");
-            if (content) content.appendChild(musicLink);
-          }
+          const content = lastMessage?.querySelector("div:last-child");
 
-          // Try automatic opening as well; the visible link remains available
-          // if the mobile browser blocks automatic navigation.
-          setTimeout(() => {
-            window.location.href = action.url;
-          }, 300);
+          if (content && playlistId) {
+            const player = document.createElement("section");
+            player.className = "amvexa-music-player";
+            player.style.cssText = "margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:14px;background:rgba(5,11,20,.72);";
+            const title = document.createElement("div");
+            title.textContent = "🎵 Amvexa Music Player";
+            title.style.cssText = "font-weight:700;font-size:13px;margin-bottom:10px;color:var(--text);";
+            const frame = document.createElement("iframe");
+            frame.title = "Amvexa Music Player";
+            frame.src = "https://www.youtube-nocookie.com/embed/videoseries?list=" + encodeURIComponent(playlistId);
+            frame.style.cssText = "display:block;width:100%;height:230px;border:0;border-radius:10px;background:#000;";
+            frame.allow = "autoplay; encrypted-media; picture-in-picture; web-share";
+            frame.referrerPolicy = "strict-origin-when-cross-origin";
+            frame.allowFullscreen = true;
+            player.append(title, frame);
+            content.appendChild(player);
+          } else if (content) {
+            const musicLink = document.createElement("a");
+            musicLink.href = action.url;
+            musicLink.target = "_blank";
+            musicLink.rel = "noopener noreferrer";
+            musicLink.textContent = "🎵 Playlist browser में खोलें";
+            musicLink.style.cssText = "display:inline-block;margin-top:10px;font-weight:700;text-decoration:underline;";
+            content.appendChild(musicLink);
+          }
         }
 
         statusText.textContent = "Online";
