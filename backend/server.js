@@ -73,9 +73,12 @@ async function sendDueTaskPushes() {
   if (!PUSH_READY || !pushSubscriptions.size) return;
   const now = Date.now();
   for (const task of tasks) {
-    if (task.status === "done" || !task.dueAt || task.pushNotifiedAt) continue;
+    if (task.status === "done" || !task.dueAt) continue;
     const due = Date.parse(task.dueAt);
     if (!Number.isFinite(due) || due > now) continue;
+    // Repeat overdue reminders hourly until the task is completed or rescheduled.
+    const lastNotified = Date.parse(task.pushNotifiedAt || "");
+    if (Number.isFinite(lastNotified) && now - lastNotified < 60 * 60 * 1000) continue;
     for (const [key, subscription] of pushSubscriptions) {
       try {
         await webpush.sendNotification(subscription, pushPayload(task));
