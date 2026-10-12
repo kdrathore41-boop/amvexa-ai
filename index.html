@@ -1157,9 +1157,9 @@
         const now = Date.now();
         const lastKey = sessionStorage.getItem("amvexa_proactive");
         const lastAt = Number(sessionStorage.getItem("amvexa_proactive_at") || 0);
-        // Avoid repeating the same spoken signal while the user has not acted on it.
-        // A pending signal is surfaced once per tab until its underlying task/goal changes.
-        if (lastKey === key) return;
+        // Suppress rapid repeats, but resurface a still-pending signal after 30 minutes.
+        // This keeps the same overdue reminder useful without repeating it every minute.
+        if (lastKey === key && now - lastAt < 30 * 60 * 1000) return;
 
         sessionStorage.setItem("amvexa_proactive", key);
         sessionStorage.setItem("amvexa_proactive_at", String(now));
