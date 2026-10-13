@@ -471,8 +471,16 @@ function createTask(title, priority = "normal", dueAt = null, goalId = null) {
 }
 
 function findTask(reference) {
-  const text = String(reference || "").toLowerCase();
-  return tasks.find(t => t.id === reference || t.title.toLowerCase() === text || t.title.toLowerCase().includes(text));
+  const raw = String(reference || "").trim();
+  // Never let an empty reference match the first task via includes("").
+  // An unspecified completion must be resolved explicitly by the caller.
+  if (!raw) return null;
+  const text = raw.toLowerCase();
+  const exact = tasks.find(t => t.id === raw || String(t.title || "").trim().toLowerCase() === text);
+  if (exact) return exact;
+  const matches = tasks.filter(t => String(t.title || "").toLowerCase().includes(text) && t.status !== "done");
+  // Partial titles are useful in chat, but never guess when more than one task matches.
+  return matches.length === 1 ? matches[0] : null;
 }
 
 function normalizeTaskReference(message) {
