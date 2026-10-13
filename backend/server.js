@@ -1606,8 +1606,9 @@ app.post("/api/chat", async (req,res)=>{
   const reminderTitle = message.replace(/(?:remind\s+me\s+to|remind\s+me|reminder|yaad\s+dilana|yaad\s+dila|yaad\s+rakh(?:na|o|iye)?|याद\s*दिलाना|याद\s*दिलाओ|याद\s*रखना|याद\s*रखो|याद\s*रखिए|bhoolna\s+mat|मत\s*भूलना)/ig,"").replace(/(?:\b(?:aaj|today|kal|tomorrow|parso|day\s+after\s+tomorrow)\b|आज|कल|परसों)\s*(?:की|के|को)?\s*(?:शाम|सुबह|दोपहर|रात|evening|morning|afternoon|night)?\s*(?:\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\d{1,2}(?::\d{2})?\s*बजे)?/ig,"").replace(/[\s:,-]+/g," ").trim();
   const postponeDirect = /(?:postpone|reschedule|पोस्टपोन|स्थगित)/i.test(message) && /(?:कल|kal|tomorrow|के लिए|ke liye)/i.test(message);
   const postponeReference = message.replace(/(?:postpone|reschedule|पोस्टपोन|स्थगित)/ig,"").replace(/(?:कल|kal|tomorrow|के लिए|ke liye|कर दो|करो|do|karo|ko|को)/ig,"").replace(/[\s:,-]+/g," ").trim();
+  const statusListDirect = isStatusOrListQuestion(message);
   const contextContinueDirect = /^(?:वो|उस|उस वाला|वही|वही वाला)\s+(?:काम|टास्क)(?:\s+को)?\s+(?:आगे|जारी)\s*(?:बढ़ाओ|बढ़ा(?:ओ|दो)|चलाओ|करो|कर दो|शुरू करो|जारी रखो)?[.!?।\s]*$/i.test(message) || /^(?:continue|carry on|keep going)\s+(?:that|the|same)\s+(?:task|work)[.!?\s]*$/i.test(message);
-  const plan=contextContinueDirect ? {tool:"continue_context",args:{}} : executeTaskDirect ? {tool:"execute_task",args:{reference:""}} : autonomousDirect ? {tool:"jarvis_autonomous_step",args:{}} : postponeDirect ? {tool:"postpone_task",args:{reference:postponeReference,dueAt:extractDueAt("कल")}} : reminderDirect ? {tool:"create_task",args:{title:"Reminder: "+reminderTitle,priority:"high",dueAt:extractDueAt(message)}} : planTool(message);
+  const plan=statusListDirect ? {tool:"get_tasks",args:{includeGoals:true}} : contextContinueDirect ? {tool:"continue_context",args:{}} : executeTaskDirect ? {tool:"execute_task",args:{reference:""}} : autonomousDirect ? {tool:"jarvis_autonomous_step",args:{}} : postponeDirect ? {tool:"postpone_task",args:{reference:postponeReference,dueAt:extractDueAt("कल")}} : reminderDirect ? {tool:"create_task",args:{title:"Reminder: "+reminderTitle,priority:"high",dueAt:extractDueAt(message)}} : planTool(message);
   // Personal intelligence must never be allowed to break the chat/voice path.
   try {
     updatePersonalAlgorithm(message, plan.tool === "create_task" ? "planning" : plan.tool === "get_tasks" ? "tasks" : plan.tool === "complete_task" ? "task_complete" : plan.tool || detectedIntent);
@@ -1640,7 +1641,7 @@ app.post("/api/chat", async (req,res)=>{
       }
     }
     // Deterministic goal execution must run before any AI/assistant-mode fallback.
-    if(detectedIntent==="assistant_mode" && plan.tool!=="create_goal_and_plan" && plan.tool!=="continue_context"){
+    if(!statusListDirect && detectedIntent==="assistant_mode" && plan.tool!=="create_goal_and_plan" && plan.tool!=="continue_context"){
       const ai=await buildAssistantResponse(message,null,false);
       responseText=ai.success?ai.text:assistantModeFallback();
     }
