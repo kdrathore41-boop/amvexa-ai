@@ -1160,15 +1160,17 @@ function cognitiveRecentContext(limit=8) {
 
 function cognitiveObserve() {
   const now=Date.now();
-  const open=tasks.filter(t=>t.status!=="done");
-  const activeGoals=goals.filter(g=>g.status!=="done");
-  const overdue=open.filter(t=>t.dueAt && Date.parse(t.dueAt)<=now);
-  const dueSoon=open.filter(t=>{
+  const open=tasks.filter(isUserFacingTask);
+  const activeGoals=goals.filter(g=>g.status!=="done" && !isQuestionLikeGoal(g));
+  const overdue=open.filter(t=>t.dueAt && Number.isFinite(Date.parse(t.dueAt)) && Date.parse(t.dueAt)<=now);
+  const actionable=open.filter(t=>!(t.dueAt && Number.isFinite(Date.parse(t.dueAt)) && Date.parse(t.dueAt)<=now));
+  const dueSoon=actionable.filter(t=>{
     if(!t.dueAt) return false;
     const ms=Date.parse(t.dueAt)-now;
     return Number.isFinite(ms) && ms>0 && ms<=2*60*60*1000;
   });
-  const high=open.filter(t=>t.priority==="high");
+  // Overdue tasks remain visible in the task list, but cannot trigger proactive alerts.
+  const high=actionable.filter(t=>t.priority==="high");
   const recentUser=conversation.filter(t=>t.role==="user").slice(-3);
   const recentAssistant=conversation.filter(t=>t.role==="assistant").slice(-2);
   const jarvis=context?.jarvis||{};
@@ -1200,7 +1202,8 @@ function cognitiveAttend(observation) {
   const candidates=[];
   const add=(type,score,target,reason,data={})=>candidates.push({type,score,target,reason,...data});
   const next=observation.focus.next;
-  if(observation.environment.overdue) add("deadline",100,next?.title||"overdue task","deadline passed",{urgency:"critical"});
+  // Do not turn a stale overdue task into an unsolicited recurring alert.
+  // Overdue tasks remain visible for explicit task-list/status requests.
   if(observation.environment.dueSoon) add("deadline_soon",90,next?.title||"due soon task","deadline approaching",{urgency:"high"});
   if(observation.environment.highPriority) add("priority",75,next?.title||"high-priority task","important unfinished work",{urgency:"high"});
   if(observation.environment.activeGoals) add("goal",55,observation.focus.activeGoal?.title||"active goal","goal needs progress",{urgency:"normal"});
