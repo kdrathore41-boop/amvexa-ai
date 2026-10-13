@@ -271,6 +271,7 @@ async function initializePersistence() {
         );
       }
     }
+    cleanupLegacyPlanningScaffolds();
     console.log("Durable state persistence ready.");
   } catch (error) {
     persistenceStatus = { enabled: true, ready: false, error: error?.message || String(error) };
@@ -405,6 +406,42 @@ function isInternalScaffoldTask(task) {
 
 function isUserFacingTask(task) {
   return Boolean(task && task.status !== "done" && !isInternalScaffoldTask(task));
+}
+
+function isQuestionLikeGoal(goal) {
+  const title = String(goal?.title || goal?.name || "").trim();
+  return isStatusOrListQuestion(title) ||
+    /(?:what should|kya karna chahiye|क्या करना चाहिए|goal par kya karna|active goals?\s*(?:aur|and|&)\s*(?:pending )?tasks?)/i.test(title);
+}
+
+// One-time startup hygiene: remove only unmistakable assistant-generated planning
+// scaffolds and question-as-goal records. Preserve real reminders, user tasks,
+// and substantive goals such as the PropVeda sales target.
+function cleanupLegacyPlanningScaffolds() {
+  const beforeTasks = tasks.length;
+  const beforeGoals = goals.length;
+  const removedTaskIds = new Set(
+    tasks.filter(isInternalScaffoldTask).map(task => task.id)
+  );
+  if (removedTaskIds.size) {
+    tasks = tasks.filter(task => !removedTaskIds.has(task.id));
+  }
+  goals = goals
+    .filter(goal => !isQuestionLikeGoal(goal))
+    .map(goal => ({
+      ...goal,
+      taskIds: Array.isArray(goal.taskIds)
+        ? goal.taskIds.filter(id => !removedTaskIds.has(id))
+        : []
+    }));
+  if (tasks.length !== beforeTasks) writeJson(FILES.tasks, tasks);
+  if (goals.length !== beforeGoals || removedTaskIds.size) writeJson(FILES.goals, goals);
+  const removedGoals = beforeGoals - goals.length;
+  const removedTasks = beforeTasks - tasks.length;
+  if (removedTasks || removedGoals) {
+    console.log(`Legacy scaffold cleanup: removed ${removedTasks} planning tasks and ${removedGoals} question-goals.`);
+  }
+  return { removedTasks, removedGoals };
 }
 
 function createGoalAndPlan(title) {
