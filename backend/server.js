@@ -378,9 +378,17 @@ function recallContext(query) {
 }
 
 function createGoalAndPlan(title) {
-  const cleanTitle = String(title || "").trim();
+  const cleanTitle = String(title || "").trim().replace(/\s+/g, " ");
   if (!cleanTitle) return { success:false, error:"Goal title is required" };
-  let goal = goals.find(g => g.status !== "done" && String(g.title || "").toLowerCase() === cleanTitle.toLowerCase());
+  // Defense in depth: never turn a question about an existing goal into a new goal.
+  // Intent detection should route these to assistant guidance, but this guard protects
+  // the data layer if another route or model path mistakenly requests goal creation.
+  if (/(?:\bwhat\b|\bhow\b|\bshould\b|\bkya\b|क्या|कैसे|क्यों|क्या करना चाहिए|बताओ|बताइए)/i.test(cleanTitle) &&
+      /(?:\bgoal\b|\bgoals\b|लक्ष्य|गोल|करना चाहिए|what should|how should)/i.test(cleanTitle)) {
+    return { success:false, error:"This is a question about a goal, not a request to create a new goal." };
+  }
+  const normalizeGoalTitle = value => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+  let goal = goals.find(g => g.status !== "done" && normalizeGoalTitle(g.title) === normalizeGoalTitle(cleanTitle));
   if (!goal) {
     goal = { id:`goal_${Date.now()}`, title:cleanTitle, status:"open", createdAt:new Date().toISOString(), taskIds:[] };
     goals.push(goal);
