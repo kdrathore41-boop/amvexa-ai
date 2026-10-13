@@ -563,6 +563,10 @@ function detectIntent(message) {
   if (hasDateOrDay && hasClockTime && hasReminderPhrase) return "reminder";
   if (/\b(remember|save|store|note|yaad rakh(?:o|na)?)\b/.test(text) || /\bmera naam\s+.+?(?:hai|yaad rakh)/i.test(text) || /\b(my name is)\b/i.test(text) || /मेरा नाम\s+.+?(?:है|याद रख|याद रखना|याद रखो)(?=\s|[।.!?]|$)/i.test(text) || /याद\s+रख(?:ो|ना|िए)?/i.test(text)) return "memory";
   if (/\b(remind|reminder|yaad dilana|yaad dila|याद दिलाना|याद दिलाओ|bhoolna mat|मत भूलना)\b/i.test(text)) return "reminder";
+  // Status/list questions about existing goals and tasks must never create a new goal.
+  // Handle them before the generic "contains goal" rule below.
+  if (/(?:active|open|pending|एक्टिव|खुले|पेंडिंग).*(?:goals?|लक्ष्य|गोल).*(?:tasks?|todos?|काम|टास्क)|(?:tasks?|todos?|काम|टास्क).*(?:goals?|लक्ष्य|गोल)/i.test(text) &&
+      /(?:बता(?:ओ|इए)|दिखा(?:ओ|इए)|बताइए|दिखाइए|show|list|what|क्या|कौन|status)/i.test(text)) return "tasks";
   // Goal execution must run before task-completion detection too: goal titles can contain words like "complete" and "task".
   // Questions about an already-active goal must use existing context, not create a new goal.
   if (/(?:\b(goal|goals)\b|मेरा\s+गोल|मेरा\s+goal|my\s+goal|मेरा\s+लक्ष्य|my\s+target)/i.test(text) &&
