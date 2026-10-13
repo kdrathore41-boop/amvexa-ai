@@ -747,24 +747,18 @@ function nextAction() {
   const activeGoals = goals.filter(g => g.status !== "done");
   const due = open.filter(t => t.dueAt && Number.isFinite(Date.parse(t.dueAt)))
     .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt));
-  const overdueTasks = due.filter(t => Date.parse(t.dueAt) <= now);
-  // A very old overdue reminder should not monopolize JARVIS's next action forever.
-  // Keep it pending, but let fresh deadlines, high-priority work and active-goal tasks surface first.
-  const isStaleOverdue = t => Boolean(t.dueAt && Number.isFinite(Date.parse(t.dueAt)) &&
-    Date.parse(t.dueAt) <= now && now - Date.parse(t.dueAt) > 24 * 60 * 60 * 1000);
-  const recentOverdue = overdueTasks.find(t => !isStaleOverdue(t));
-  const overdue = recentOverdue || null;
   const dueSoon = due.find(t => {
     const ms = Date.parse(t.dueAt) - now;
     return ms > 0 && ms <= 60 * 60 * 1000;
   });
-  // A stale overdue reminder remains in the task list, but must not block all
-  // other JARVIS priorities or keep the home-screen next-action banner stuck.
-  const actionableOpen = open.filter(t => !isStaleOverdue(t));
+  // Overdue items stay in the task list, but never monopolize the home-screen
+  // next action. Current tasks and active goals should surface first.
+  const isOverdue = t => Boolean(t.dueAt && Number.isFinite(Date.parse(t.dueAt)) && Date.parse(t.dueAt) <= now);
+  const actionableOpen = open.filter(t => !isOverdue(t));
   const high = actionableOpen.find(t => t.priority === "high");
   const linkedGoalTask = actionableOpen.find(t => t.goalId && activeGoals.some(g => g.id === t.goalId));
   const futureDue = due.find(t => Date.parse(t.dueAt) > now);
-  const pick = overdue || dueSoon || high || linkedGoalTask || futureDue || actionableOpen[0];
+  const pick = dueSoon || high || linkedGoalTask || futureDue || actionableOpen[0];
   if (pick) {
     const isOverdue = Boolean(pick.dueAt && Date.parse(pick.dueAt) <= now);
     const reason = pick === overdue ? "overdue"
