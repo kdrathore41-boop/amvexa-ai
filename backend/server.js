@@ -578,8 +578,9 @@ function syncGoals() {
 
 function detectIntent(message) {
   const text = String(message || "").toLowerCase().trim();
-  // Route status/list questions to existing data, never goal creation.
-  if (/(?:\b(?:my|mere|meri|active|open|pending)\b|मेरे|मेरी|मेरा|एक्टिव|खुले|पेंडिंग).*(?:\bgoals?\b|लक्ष्य|गोल|\btasks?\b|\btodos?\b|काम|टास्क|कार्य)/i.test(text) && /(?:बताओ|बताइए|दिखाओ|दिखाइए|\bshow\b|\blist\b|\bwhat are\b|\bwhat is\b|\bkya hain\b|क्या हैं|कौन से|कितने|\bstatus\b)/i.test(text)) return "tasks";
+  // Route Hindi, Hinglish and mixed-language status/list questions to existing data.
+  if (/(?:\b(?:my|mere|meri|active|open|pending)\b|मेरे|मेरी|मेरा|एक्टिव|खुले|पेंडिंग).*(?:\bgoals?\b|लक्ष्य|गोल|\btasks?\b|\btodos?\b|काम|टास्क|कार्य)/i.test(text) &&
+      /(?:बताओ|बताइए|दिखाओ|दिखाइए|\bbatao\b|\bbataiye\b|\bdikhao\b|\bdikhaiye\b|\bshow\b|\blist\b|\bwhat are\b|\bwhat is\b|\bkya hain\b|क्या हैं|कौन से|कितने|\bstatus\b)/i.test(text)) return "tasks";
   if (/^\s*(?:आज|aaj|today)\s*(?:का|के|की)?\s*(?:टास्क|काम|कार्य|tasks?|todos?)\s*(?:बताओ|बताइए|दिखाओ|दिखाइए|show|list)\s*[?।.!]*$/i.test(text) ||
       /^\s*(?:आज|aaj|today)\s+(?:मुझे|mujhe)\s+(?:क्या|kya)\s+(?:करना|karna)\s+(?:है|hai)\s*[?।.!]*$/i.test(text)) return "tasks";
   // Explicit assistant-mode requests take priority over every other intent.\n  // Recall questions must be checked before memory-save phrases so
