@@ -658,7 +658,48 @@ function taskFromMessage(message) {
   return title;
 }
 
-function nextAction() { const open=tasks.filter(t=>t.status!=="done"); const now=Date.now(); const activeGoals=goals.filter(g=>g.status!=="done"); const due=open.filter(t=>t.dueAt).sort((a,b)=>new Date(a.dueAt)-new Date(b.dueAt)); const overdue=due.find(t=>new Date(t.dueAt).getTime()<=now); const dueSoon=due.find(t=>{const ms=new Date(t.dueAt).getTime()-now;return ms>0&&ms<=60*60*1000;}); const high=open.find(t=>t.priority==="high"); const linkedGoalTask=open.find(t=>t.goalId&&activeGoals.some(g=>g.id===t.goalId)); const pick=overdue||dueSoon||high||linkedGoalTask||due[0]||open[0]; if(pick)return {type:"task",title:pick.title,taskId:pick.id,priority:pick.priority,dueAt:pick.dueAt||null,goalId:pick.goalId||null,reason:overdue?"overdue":dueSoon?"due_soon":high?"high_priority":linkedGoalTask?"active_goal":"next_due",overdue:Boolean(pick.dueAt&&new Date(pick.dueAt).getTime()<=now)}; const goal=activeGoals[0]; if(goal)return {type:"goal",title:goal.title||goal.name||"active goal",goalId:goal.id||null,reason:"active_goal_without_task"}; return {type:"setup",title:"Create your first task or goal"}; }
+function nextAction() {
+  const open = tasks.filter(t => t.status !== "done");
+  const now = Date.now();
+  const activeGoals = goals.filter(g => g.status !== "done");
+  const due = open.filter(t => t.dueAt && Number.isFinite(Date.parse(t.dueAt)))
+    .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt));
+  const overdueTasks = due.filter(t => Date.parse(t.dueAt) <= now);
+  // A very old overdue reminder should not monopolize JARVIS's next action forever.
+  // Keep it pending, but let fresh deadlines, high-priority work and active-goal tasks surface first.
+  const recentOverdue = overdueTasks.find(t => now - Date.parse(t.dueAt) <= 24 * 60 * 60 * 1000);
+  const overdue = recentOverdue || null;
+  const dueSoon = due.find(t => {
+    const ms = Date.parse(t.dueAt) - now;
+    return ms > 0 && ms <= 60 * 60 * 1000;
+  });
+  const high = open.find(t => t.priority === "high");
+  const linkedGoalTask = open.find(t => t.goalId && activeGoals.some(g => g.id === t.goalId));
+  const futureDue = due.find(t => Date.parse(t.dueAt) > now);
+  const pick = overdue || dueSoon || high || linkedGoalTask || futureDue || open[0] || overdueTasks[0];
+  if (pick) {
+    const isOverdue = Boolean(pick.dueAt && Date.parse(pick.dueAt) <= now);
+    const reason = pick === overdue ? "overdue"
+      : pick === dueSoon ? "due_soon"
+      : pick === high ? "high_priority"
+      : pick === linkedGoalTask ? "active_goal"
+      : isOverdue ? "overdue"
+      : "next_due";
+    return {
+      type: "task",
+      title: pick.title,
+      taskId: pick.id,
+      priority: pick.priority,
+      dueAt: pick.dueAt || null,
+      goalId: pick.goalId || null,
+      reason,
+      overdue: isOverdue
+    };
+  }
+  const goal = activeGoals[0];
+  if (goal) return {type:"goal",title:goal.title||goal.name||"active goal",goalId:goal.id||null,reason:"active_goal_without_task"};
+  return {type:"setup",title:"Create your first task or goal"};
+}
 function dailyPlan() { const now=Date.now(); const items=tasks.filter(t=>t.status!=="done").sort((a,b)=>{const pa={high:0,normal:1,low:2}[a.priority]??1,pb={high:0,normal:1,low:2}[b.priority]??1; const da=a.dueAt?new Date(a.dueAt).getTime():Infinity,db=b.dueAt?new Date(b.dueAt).getTime():Infinity; return (da-now)-(db-now)||pa-pb;}).slice(0,5); return {generatedAt:new Date().toISOString(),tasks:items,nextAction:nextAction()}; }
 function contextSummary() { return { memoryCount: memory.length, taskCount: tasks.length, openTasks: tasks.filter(t => t.status !== "done").length, goalCount: goals.length, knowledgeCount: knowledge.length }; }
 
