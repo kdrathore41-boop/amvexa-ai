@@ -761,8 +761,7 @@ function nextAction() {
   const pick = dueSoon || high || linkedGoalTask || futureDue || actionableOpen[0];
   if (pick) {
     const isOverdue = Boolean(pick.dueAt && Date.parse(pick.dueAt) <= now);
-    const reason = pick === overdue ? "overdue"
-      : pick === dueSoon ? "due_soon"
+    const reason = pick === dueSoon ? "due_soon"
       : pick === high ? "high_priority"
       : pick === linkedGoalTask ? "active_goal"
       : isOverdue ? "overdue"
