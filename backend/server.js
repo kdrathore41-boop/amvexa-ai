@@ -390,12 +390,19 @@ function recallContext(query) {
 function createGoalAndPlan(title) {
   const cleanTitle = String(title || "").trim().replace(/\s+/g, " ");
   if (!cleanTitle) return { success:false, error:"Goal title is required" };
-  // Defense in depth: never turn a question about an existing goal into a new goal.
-  // Intent detection should route these to assistant guidance, but this guard protects
-  // the data layer if another route or model path mistakenly requests goal creation.
-  if (/(?:\bwhat\b|\bhow\b|\bshould\b|\bkya\b|क्या|कैसे|क्यों|क्या करना चाहिए|बताओ|बताइए)/i.test(cleanTitle) &&
-      /(?:\bgoal\b|\bgoals\b|लक्ष्य|गोल|करना चाहिए|what should|how should)/i.test(cleanTitle)) {
-    return { success:false, error:"This is a question about a goal, not a request to create a new goal." };
+  // Defense in depth: status/list requests must never create a goal, even if
+  // intent detection or the model mistakenly routes them to goal creation.
+  const goalRequestText = cleanTitle.toLowerCase()
+    .replace(/[“”"'’?!।.,:;]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const asksForExistingStatus =
+    /(?:\b(?:my|mere|meri|mera|active|open|pending)\b|मेरे|मेरी|मेरा|एक्टिव|खुले|पेंडिंग).*?(?:\bgoals?\b|\btasks?\b|\btodos?\b|लक्ष्य|गोल|काम|टास्क|कार्य)/i.test(goalRequestText) &&
+    /(?:\b(?:batao|bataiye|dikhao|dikhaiye|show|list|status)\b|बताओ|बताइए|दिखाओ|दिखाइए|क्या हैं|कौन से|कितने)/i.test(goalRequestText);
+  if (asksForExistingStatus ||
+      (/(?:\bwhat\b|\bhow\b|\bshould\b|\bkya\b|क्या|कैसे|क्यों|क्या करना चाहिए|बताओ|बताइए)/i.test(goalRequestText) &&
+       /(?:\bgoal\b|\bgoals\b|लक्ष्य|गोल|करना चाहिए|what should|how should)/i.test(goalRequestText))) {
+    return { success:false, error:"This is a question about existing goals or tasks, not a request to create a new goal." };
   }
   const normalizeGoalTitle = value => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
   let goal = goals.find(g => g.status !== "done" && normalizeGoalTitle(g.title) === normalizeGoalTitle(cleanTitle));
