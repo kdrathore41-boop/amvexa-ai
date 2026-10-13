@@ -1016,7 +1016,7 @@ app.use((req,res,next)=>{
 
 app.get("/api/health", (req,res)=>res.json({success:true,service:"amvexa-ai",version:VERSION,release:RELEASE,persistence:persistenceStatus}));
 app.get("/api/memory", (req,res)=>res.json({success:true,memory}));
-app.get("/api/tasks", (req,res)=>res.json({success:true,tasks}));
+app.get("/api/tasks", (req,res)=>res.json({success:true,tasks:tasks.filter(t=>!isInternalScaffoldTask(t))}));
 app.get("/api/context", (req,res)=>res.json({success:true,context:contextSummary()}));
 app.get("/api/conversation", (req,res)=>res.json({success:true,conversation:conversation.slice(-MAX.conversation)}));
 app.get("/api/intelligence", (req,res)=>res.json({success:true,intelligence:intelligenceSnapshot()}));
@@ -1024,8 +1024,8 @@ app.get("/api/jarvis", (req,res)=>res.json({success:true,state:jarvisContext()})
 app.get("/api/autonomous-talk", async (req,res)=>{
   const state=jarvisContext();
   const recent=conversation.slice(-10).map(t=>({role:t.role,content:String(t.content||"").slice(0,700)}));
-  const activeTasks=tasks.filter(t=>t.status!=="done").slice(0,5).map(t=>({title:t.title,priority:t.priority,dueAt:t.dueAt||null,status:t.status}));
-  const activeGoals=goals.filter(g=>g.status!=="done").slice(0,3).map(g=>({title:g.title||g.name,status:g.status}));
+  const activeTasks=tasks.filter(isUserFacingTask).slice(0,5).map(t=>({title:t.title,priority:t.priority,dueAt:t.dueAt||null,status:t.status}));
+  const activeGoals=goals.filter(g=>g.status!=="done" && !isStatusOrListQuestion(g.title) && !/(?:what should|kya karna chahiye|क्या करना चाहिए|goal par kya karna)/i.test(String(g.title || ""))).slice(0,3).map(g=>({title:g.title||g.name,status:g.status}));
   const prompt=`You are Amvexa, Kapil's proactive personal AI companion. This is an autonomous check-in: the user has not spoken for a while, so YOU chose to start the conversation.
 Speak naturally in Hindi/Hinglish, respectful "aap". Maximum 2 short sentences.
 Use the current context and recent conversation to choose ONE useful, human reason to speak.
