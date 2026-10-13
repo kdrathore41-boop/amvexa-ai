@@ -1300,10 +1300,14 @@ async function runBrainCycle() {
   brainLastRunAt = new Date().toISOString();
   try {
     const cognition=runCognitiveCycle();
-    const open=tasks.filter(t=>t.status!=="done");
-    const high=open.filter(t=>t.priority==="high");
-    const next=nextAction();
+    // Keep overdue tasks visible in the task list, but do not let them drive
+    // proactive alerts. Only actionable (not-overdue) user-facing tasks count
+    // toward the brain's priority and next-action signals.
+    const open=tasks.filter(isUserFacingTask);
     const now=Date.now();
+    const actionable=open.filter(t => !(t.dueAt && Number.isFinite(Date.parse(t.dueAt)) && Date.parse(t.dueAt) <= now));
+    const high=actionable.filter(t=>t.priority==="high");
+    const next=nextAction();
     const cognitiveAttention=cognition.attention;
     const cognitiveDecision=cognition.decision;
     const dueSoon=next?.dueAt && !next.overdue && (() => {
@@ -1314,18 +1318,19 @@ async function runBrainCycle() {
     if(next?.overdue) signal={type:"deadline",priority:"high",reason:"task_overdue",target:next.title};
     else if(dueSoon) signal={type:"deadline_soon",priority:"high",reason:"task_due_soon",target:next.title};
     else if(high.length) { const task=next?.type==="task"&&next.priority==="high"?next:high[0]; signal={type:"priority",priority:"high",reason:"high_priority_task_pending",target:task.title}; }
-    else if(open.length) signal={type:"next_action",priority:"normal",reason:"next_action_available",target:next?.title||open[0].title};
+    else if(actionable.length) signal={type:"next_action",priority:"normal",reason:"next_action_available",target:next?.title||actionable[0].title};
     else {
-      const goal=goals.find(g=>g.status!=="done");
+      const goal=goals.find(g=>g.status!=="done" && !isQuestionLikeGoal(g));
       if(goal) signal={type:"goal_followup",priority:"normal",reason:"active_goal",target:goal.title||goal.name||"active goal"};
     }
     if(cognitiveAttention.type!=="idle" && cognitiveDecision.action!=="observe"){
-      signal = signal || {
+      const staleDeadlineAttention = ["deadline","deadline_soon"].includes(cognitiveAttention.type) && !next?.overdue && !dueSoon;
+      signal = signal || (staleDeadlineAttention ? null : {
         type:cognitiveAttention.type,
         priority:cognitiveAttention.urgency==="critical"||cognitiveAttention.urgency==="high"?"high":"normal",
         reason:cognitiveAttention.reason,
         target:cognitiveAttention.target
-      };
+      });
     }
     brainLastSignal=signal;
     if(!signal) return;
