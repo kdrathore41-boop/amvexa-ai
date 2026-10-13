@@ -387,21 +387,33 @@ function recallContext(query) {
   return { remembered, rememberTurns };
 }
 
-function createGoalAndPlan(title) {
-  const cleanTitle = String(title || "").trim().replace(/\s+/g, " ");
-  if (!cleanTitle) return { success:false, error:"Goal title is required" };
-  // Defense in depth: status/list requests must never create a goal, even if
-  // intent detection or the model mistakenly routes them to goal creation.
-  const goalRequestText = cleanTitle.toLowerCase()
+function isStatusOrListQuestion(value) {
+  const text = String(value || "").toLowerCase()
     .replace(/[“”"'’?!।.,:;]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  const asksForExistingStatus =
-    /(?:\b(?:my|mere|meri|mera|active|open|pending)\b|मेरे|मेरी|मेरा|एक्टिव|खुले|पेंडिंग).*?(?:\bgoals?\b|\btasks?\b|\btodos?\b|लक्ष्य|गोल|काम|टास्क|कार्य)/i.test(goalRequestText) &&
-    /(?:\b(?:batao|bataiye|dikhao|dikhaiye|show|list|status)\b|बताओ|बताइए|दिखाओ|दिखाइए|क्या हैं|कौन से|कितने)/i.test(goalRequestText);
-  if (asksForExistingStatus ||
-      (/(?:\bwhat\b|\bhow\b|\bshould\b|\bkya\b|क्या|कैसे|क्यों|क्या करना चाहिए|बताओ|बताइए)/i.test(goalRequestText) &&
-       /(?:\bgoal\b|\bgoals\b|लक्ष्य|गोल|करना चाहिए|what should|how should)/i.test(goalRequestText))) {
+  const mentionsExistingItems = /(?:\b(?:my|mere|meri|mera|active|activ|open|pending)\b|मेरे|मेरी|मेरा|एक्टिव|पेंडिंग).*?(?:\bgoals?\b|\btasks?\b|\btodos?\b|लक्ष्य|गोल|काम|टास्क|कार्य)/i.test(text);
+  const asksToList = /(?:\b(?:batao|bataiye|dikhao|dikhaiye|show|list|status|tell me|what are|which|how many)\b|बताओ|बताइए|दिखाओ|दिखाइए|क्या हैं|कौन से|कितने)/i.test(text);
+  return mentionsExistingItems && (asksToList || /(?:\b(?:active|activ|open|pending)\b|एक्टिव|पेंडिंग|खुले)/i.test(text));
+}
+
+function isInternalScaffoldTask(task) {
+  const title = String(task?.title || "").trim();
+  return /^(?:Define the core capabilities and priorities for |Verify the memory, task, reminder and autonomous execution workflow$|Plan the remaining integrations and proactive assistant behavior$|Reminder:\s*इस काम पर आगे बढ़ते)/i.test(title)
+    || isStatusOrListQuestion(title);
+}
+
+function isUserFacingTask(task) {
+  return Boolean(task && task.status !== "done" && !isInternalScaffoldTask(task));
+}
+
+function createGoalAndPlan(title) {
+  const cleanTitle = String(title || "").trim().replace(/\s+/g, " ");
+  if (!cleanTitle) return { success:false, error:"Goal title is required" };
+  // Defense in depth: never convert status/list questions into new goal trees.
+  if (isStatusOrListQuestion(cleanTitle) ||
+      (/(?:\bwhat\b|\bhow\b|\bshould\b|\bkya\b|क्या|कैसे|क्यों|क्या करना चाहिए|बताओ|बताइए)/i.test(cleanTitle) &&
+       /(?:\bgoal\b|\bgoals\b|लक्ष्य|गोल|करना चाहिए|what should|how should)/i.test(cleanTitle))) {
     return { success:false, error:"This is a question about existing goals or tasks, not a request to create a new goal." };
   }
   const normalizeGoalTitle = value => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
@@ -585,6 +597,8 @@ function syncGoals() {
 
 function detectIntent(message) {
   const text = String(message || "").toLowerCase().trim();
+  // Status/list questions must be routed before generic goal creation.
+  if (isStatusOrListQuestion(text)) return "tasks";
   // Route Hindi, Hinglish and mixed-language status/list questions to existing data.
   if (/(?:\b(?:my|mere|meri|active|open|pending)\b|मेरे|मेरी|मेरा|एक्टिव|खुले|पेंडिंग).*(?:\bgoals?\b|लक्ष्य|गोल|\btasks?\b|\btodos?\b|काम|टास्क|कार्य)/i.test(text) &&
       /(?:बताओ|बताइए|दिखाओ|दिखाइए|\bbatao\b|\bbataiye\b|\bdikhao\b|\bdikhaiye\b|\bshow\b|\blist\b|\bwhat are\b|\bwhat is\b|\bkya hain\b|क्या हैं|कौन से|कितने|\bstatus\b)/i.test(text)) return "tasks";
@@ -691,7 +705,7 @@ function taskFromMessage(message) {
 }
 
 function nextAction() {
-  const open = tasks.filter(t => t.status !== "done");
+  const open = tasks.filter(isUserFacingTask);
   const now = Date.now();
   const activeGoals = goals.filter(g => g.status !== "done");
   const due = open.filter(t => t.dueAt && Number.isFinite(Date.parse(t.dueAt)))
@@ -732,14 +746,14 @@ function nextAction() {
   if (goal) return {type:"goal",title:goal.title||goal.name||"active goal",goalId:goal.id||null,reason:"active_goal_without_task"};
   return {type:"setup",title:"Create your first task or goal"};
 }
-function dailyPlan() { const now=Date.now(); const items=tasks.filter(t=>t.status!=="done").sort((a,b)=>{const pa={high:0,normal:1,low:2}[a.priority]??1,pb={high:0,normal:1,low:2}[b.priority]??1; const da=a.dueAt?new Date(a.dueAt).getTime():Infinity,db=b.dueAt?new Date(b.dueAt).getTime():Infinity; return (da-now)-(db-now)||pa-pb;}).slice(0,5); return {generatedAt:new Date().toISOString(),tasks:items,nextAction:nextAction()}; }
-function contextSummary() { return { memoryCount: memory.length, taskCount: tasks.length, openTasks: tasks.filter(t => t.status !== "done").length, goalCount: goals.length, knowledgeCount: knowledge.length }; }
+function dailyPlan() { const now=Date.now(); const items=tasks.filter(isUserFacingTask).sort((a,b)=>{const pa={high:0,normal:1,low:2}[a.priority]??1,pb={high:0,normal:1,low:2}[b.priority]??1; const da=a.dueAt?new Date(a.dueAt).getTime():Infinity,db=b.dueAt?new Date(b.dueAt).getTime():Infinity; return (da-now)-(db-now)||pa-pb;}).slice(0,5); return {generatedAt:new Date().toISOString(),tasks:items,nextAction:nextAction()}; }
+function contextSummary() { return { memoryCount: memory.length, taskCount: tasks.filter(isUserFacingTask).length, openTasks: tasks.filter(isUserFacingTask).length, goalCount: goals.filter(g => g.status !== "done" && !isStatusOrListQuestion(g.title) && !/(?:what should|kya karna chahiye|क्या करना चाहिए|goal par kya karna)/i.test(String(g.title || ""))).length, knowledgeCount: knowledge.length }; }
 
 // JARVIS/FRIDAY operating state: context -> priority -> next action -> execution -> verification -> learning.
 function jarvisContext() {
   const now = new Date();
-  const openTasks = tasks.filter(t => t.status !== "done");
-  const activeGoals = goals.filter(g => g.status !== "done");
+  const openTasks = tasks.filter(isUserFacingTask);
+  const activeGoals = goals.filter(g => g.status !== "done" && !isStatusOrListQuestion(g.title) && !/(?:what should|kya karna chahiye|क्या करना चाहिए|goal par kya karna)/i.test(String(g.title || "")));
   const highPriority = openTasks.filter(t => t.priority === "high");
   const dueSoon = openTasks.filter(t => t.dueAt).filter(t => { const ms = new Date(t.dueAt).getTime() - now.getTime(); return ms > 0 && ms <= 60 * 60 * 1000; });
   const overdue = openTasks.filter(t => t.dueAt && new Date(t.dueAt).getTime() <= now.getTime());
@@ -1624,11 +1638,11 @@ app.post("/api/chat", async (req,res)=>{
     }else if(plan.tool==="complete_task"&&verification?.verified){
       responseText="Done. Task \"" + toolResult.task.title + "\" complete mark ho gaya. Execution verified.";
     }else if(plan.tool==="get_tasks"){
-      const open=tasks.filter(t=>t.status!=="done");
-      const activeGoals=plan.args?.includeGoals?goals.filter(g=>g.status!=="done"):[];
-      const goalText=activeGoals.length?"Active goals:\\n"+activeGoals.map((g,i)=>(i+1)+". "+(g.title||g.name||"Untitled goal")).join("\\n"):"";
-      const taskText=open.length?"Pending tasks:\\n"+open.map((t,i)=>(i+1)+". "+t.title+" — "+t.priority).join("\\n"):"Abhi koi active task nahi hai.";
-      responseText=[goalText,taskText].filter(Boolean).join("\\n\\n");
+      const open=tasks.filter(isUserFacingTask);
+      const activeGoals=plan.args?.includeGoals?goals.filter(g=>g.status!=="done" && !isStatusOrListQuestion(g.title) && !/(?:what should|kya karna chahiye|क्या करना चाहिए|goal par kya karna)/i.test(String(g.title || ""))):[];
+      const goalText=activeGoals.length?"Active goals:\n"+activeGoals.map((g,i)=>(i+1)+". "+(g.title||g.name||"Untitled goal")).join("\n"):"";
+      const taskText=open.length?"Pending tasks:\n"+open.map((t,i)=>(i+1)+". "+t.title+" — "+t.priority).join("\n"):"Abhi koi active task nahi hai.";
+      responseText=[goalText,taskText].filter(Boolean).join("\n\n");
     }else if(plan.tool==="get_daily_plan"){
       const items=toolResult?.plan?.tasks||[];
       responseText=items.length?"Aaj ka execution order:\\n"+items.map((t,i)=>(i+1)+". "+t.title+" — "+t.priority).join("\\n"):"Abhi koi active task nahi hai.";
