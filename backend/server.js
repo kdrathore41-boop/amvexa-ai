@@ -420,6 +420,7 @@ function isQuestionLikeGoal(goal) {
 function cleanupLegacyPlanningScaffolds() {
   const beforeTasks = tasks.length;
   const beforeGoals = goals.length;
+  const beforeConversation = conversation.length;
   const removedTaskIds = new Set(
     tasks.filter(isInternalScaffoldTask).map(task => task.id)
   );
@@ -434,14 +435,25 @@ function cleanupLegacyPlanningScaffolds() {
         ? goal.taskIds.filter(id => !removedTaskIds.has(id))
         : []
     }));
+  // Remove only old assistant list-dumps that exposed the scaffolding records.
+  // Keep normal conversation history and all user messages intact.
+  conversation = conversation.filter(item => {
+    const role = String(item?.role || "").toLowerCase();
+    const body = String(item?.content || "");
+    const isScaffoldDump = /Active goals:/i.test(body) && /Pending tasks:/i.test(body) &&
+      /Define the core capabilities and priorities for|Verify the memory, task, reminder and autonomous execution workflow|Plan the remaining integrations and proactive assistant behavior/i.test(body);
+    return !(role === "assistant" && isScaffoldDump);
+  });
   if (tasks.length !== beforeTasks) writeJson(FILES.tasks, tasks);
   if (goals.length !== beforeGoals || removedTaskIds.size) writeJson(FILES.goals, goals);
+  if (conversation.length !== beforeConversation) writeJson(FILES.conversation, conversation);
   const removedGoals = beforeGoals - goals.length;
   const removedTasks = beforeTasks - tasks.length;
-  if (removedTasks || removedGoals) {
-    console.log(`Legacy scaffold cleanup: removed ${removedTasks} planning tasks and ${removedGoals} question-goals.`);
+  const removedConversation = beforeConversation - conversation.length;
+  if (removedTasks || removedGoals || removedConversation) {
+    console.log(`Legacy cleanup: removed ${removedTasks} planning tasks, ${removedGoals} question-goals and ${removedConversation} stale scaffold messages.`);
   }
-  return { removedTasks, removedGoals };
+  return { removedTasks, removedGoals, removedConversation };
 }
 
 function createGoalAndPlan(title) {
