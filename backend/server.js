@@ -509,8 +509,12 @@ function normalizeTaskReference(message) {
 }
 
 function executeTaskInternally(reference) {
-  let task = findTask(reference);
-  if (!task) {
+  const rawReference = String(reference || "").trim();
+  let task = findTask(rawReference);
+  // Use the sole open task only for a genuinely unspecified or generic
+  // pronoun reference. Never substitute it for an ambiguous/mismatched title.
+  const genericReference = /^(?:(?:इस|उस|यह|वह)\s+(?:काम|टास्क|कार्य)|(?:this|that|the same)\s+(?:task|work))$/i.test(rawReference);
+  if (!task && (!rawReference || genericReference)) {
     const openTasks = tasks.filter(t => t.status !== "done");
     if (openTasks.length === 1) task = openTasks[0];
   }
