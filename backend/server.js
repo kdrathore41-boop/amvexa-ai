@@ -1596,6 +1596,7 @@ app.post("/api/chat", async (req,res)=>{
   const hasReminderRequest = /(?:remind|reminder|yaad\s+dilana|yaad\s+dila|याद\s*दिलाना|याद\s*दिलाओ|भूलना\s*मत|bhoolna\s+mat)/i.test(message)
     && /(?:\b(?:aaj|today|kal|tomorrow|parso|day\s+after\s+tomorrow)\b|आज|कल|परसों|\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\d{1,2}(?::\d{2})?\s*बजे)/i.test(message);
   const compoundIdentityReminder = hasIdentity && hasRememberRequest && hasReminderRequest;
+  const goalAdviceDirect = /(?:\bwhat should i do\b|\bwhat should i do today\b|\bkya karna chahiye\b|\bkya karu\b|\bgoal par kya karna chahiye\b|\bmujhe .*?goal.*?par kya karna chahiye\b|आज मुझे .*?(?:goal|गोल|लक्ष्य).*?पर क्या करना चाहिए|मुझे .*?(?:goal|गोल|लक्ष्य).*?पर क्या करना चाहिए|अगला कदम)/i.test(message) && /(?:\b(goal|goals|propveda|sales|target)\b|लक्ष्य|गोल|बिक्री|सेल्स)/i.test(message);
   // High-priority deterministic commands must bypass the generative AI fallback.
   const autonomousDirect = /^(?:khud\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|khud\s+decide\s+karna|khud\s+tay\s+karo|apne\s+aap\s+decide\s+karo(?:\s+aur\s+(?:test\s+shuru\s+karo|khud\s+start\s+karo))?|test\s+shuru\s+karo|khud\s+start\s+karo|start\s+the\s+test|decide\s+yourself\s+and\s+start)[.!?।\s]*$/i.test(message);
   const executeTaskDirect = /^(?:is\s+task\s+ko\s+khud\s+(?:execute|exicute)\s+karo|is\s+task\s+ko\s+(?:execute|exicute)\s+karo|task\s+ko\s+khud\s+(?:execute|exicute)\s+karo|execute\s+this\s+task|execute\s+the\s+task)[.!?।\s]*$/i.test(message);
@@ -1638,8 +1639,20 @@ app.post("/api/chat", async (req,res)=>{
         responseText="Memory aur reminder dono ko verify karke complete karne mein dikkat hui.";
       }
     }
+    // Goal-advice questions must use existing goal context and must never create tasks/goals.
+    if(!responseText && goalAdviceDirect){
+      const activeGoal=goals.find(g=>g.status!=="done" && !isQuestionLikeGoal(g));
+      const goalTitle=String(activeGoal?.title||"").trim();
+      if(/propveda|sales|बिक्री|सेल्स/i.test(goalTitle+" "+message)){
+        responseText="Aapka active goal hai: "+(goalTitle||"PropVeda ki 5 sales").replace(/[।.!?]+$/,"")+".\n\nAbhi pehla practical step: 10 interested buyers ki shortlist banaiye aur har buyer ka budget, required plot size aur site-visit interest note kijiye. Phir unmein se sabse interested 3 buyers ko site visit ke liye follow up karein.\n\nYeh sirf salah hai—maine koi naya task ya goal create nahi kiya.";
+      }else if(activeGoal){
+        responseText="Aapka active goal hai: "+goalTitle+".\n\nMain isi goal ke context mein agla practical step chununga; aapke sawaal se koi naya goal ya task create nahi kiya gaya.";
+      }else{
+        responseText="Abhi koi active goal saved nahi mila. Aapka sawaal salah ke liye hai, isliye maine koi naya goal ya task create nahi kiya.";
+      }
+    }
     // Deterministic goal execution must run before any AI/assistant-mode fallback.
-    if(!statusListDirect && detectedIntent==="assistant_mode" && plan.tool!=="create_goal_and_plan" && plan.tool!=="continue_context"){
+    if(!responseText && !statusListDirect && detectedIntent==="assistant_mode" && plan.tool!=="create_goal_and_plan" && plan.tool!=="continue_context"){
       const ai=await buildAssistantResponse(message,null,false);
       responseText=ai.success?ai.text:assistantModeFallback();
     }
