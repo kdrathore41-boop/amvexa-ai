@@ -1460,7 +1460,11 @@ app.post("/api/chat", async (req,res)=>{
   // reliable even if another part of the chat pipeline has a transient failure.
   if (/^(?:done|complete|finished|पूरा|पूर्ण|हो गया|हो गई|कर दिया|कर दी)[.!?।\s]*$/i.test(message)) {
     try {
-      const toolResult = completeTask("");
+      // Complete the active JARVIS task first; otherwise complete the current next action.
+      // This still works when the user has several pending tasks.
+      const activeTask = tasks.find(t => t.id === context?.jarvis?.taskId && t.status !== "done");
+      const suggestedTask = nextAction();
+      const toolResult = completeTask(activeTask?.id || suggestedTask?.taskId || "");
       const verification = verifyTool("complete_task", toolResult);
       if (verification.verified) {
         const responseText = "Done. Task \"" + toolResult.task.title + "\" complete mark ho gaya. Execution verified.";
