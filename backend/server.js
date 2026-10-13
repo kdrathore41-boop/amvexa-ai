@@ -341,6 +341,16 @@ function normalizePersonalMemory(content) {
 }
 function remember(content, kind = "saved-memory") {
   const normalized = normalizePersonalMemory(content);
+  const canonical = value => String(value || "").trim().replace(/\\s+/g, " ").toLowerCase();
+  const existing = memory.find(item => canonical(normalizePersonalMemory(item.content)) === canonical(normalized));
+  if (existing) {
+    // Re-saving the same fact should refresh it, not fill memory with duplicates.
+    existing.kind = kind || existing.kind || "saved-memory";
+    existing.importance = existing.kind === "preference" ? 6 : 5;
+    existing.updatedAt = new Date().toISOString();
+    writeJson(FILES.memory, memory);
+    return existing;
+  }
   const item = { id: `mem_${Date.now()}`, role: "memory", content: normalized, kind, importance: kind === "preference" ? 6 : 5, at: new Date().toISOString() };
   memory.push(item);
   memory = memory.slice(-MAX.memory);
