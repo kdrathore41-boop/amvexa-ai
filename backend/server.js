@@ -432,10 +432,10 @@ function createGoalAndPlan(title) {
 }
 
 function createTask(title, priority = "normal", dueAt = null, goalId = null) {
-  const cleanTitle = String(title).trim();
-  // Reusing the same reminder should update the existing open task instead of
-  // creating duplicates. This also corrects an earlier reminder with a bad time.
-  const existing = tasks.find(t => t.status !== "done" && t.title === cleanTitle);
+  const cleanTitle = String(title).trim().replace(/\\s+/g, " ");
+  const normalizedTitle = value => String(value || "").trim().replace(/\\s+/g, " ").toLowerCase();
+  // Reuse an open task/reminder even if capitalization or whitespace differs.
+  const existing = tasks.find(t => t.status !== "done" && normalizedTitle(t.title) === normalizedTitle(cleanTitle));
   if (existing) {
     existing.priority = ["high", "normal", "low"].includes(priority) ? priority : existing.priority;
     if (dueAt) existing.dueAt = dueAt;
@@ -567,6 +567,10 @@ function detectIntent(message) {
   // Handle them before the generic "contains goal" rule below.
   if (/(?:active|open|pending|एक्टिव|खुले|पेंडिंग).*(?:goals?|लक्ष्य|गोल).*(?:tasks?|todos?|काम|टास्क)|(?:tasks?|todos?|काम|टास्क).*(?:goals?|लक्ष्य|गोल)/i.test(text) &&
       /(?:बता(?:ओ|इए)|दिखा(?:ओ|इए)|बताइए|दिखाइए|show|list|what|क्या|कौन|status)/i.test(text)) return "tasks";
+  // A question about how to progress an existing goal is guidance, not a request to create another goal.
+  // Keep this broad rule ahead of the generic goal-creation fallback to prevent duplicate goal/task trees.
+  if (/(?:\\b(goal|goals)\\b|लक्ष्य|गोल)/i.test(text) &&
+      /(?:what should|what do i|how should|what next|kya karna chahiye|kya karu|kya karna hai|goal par|goal ke liye|क्या करना चाहिए|क्या करूँ|क्या करूं|क्या करना है|लक्ष्य पर|अगला कदम|next step)/i.test(text)) return "assistant_mode";
   // Goal execution must run before task-completion detection too: goal titles can contain words like "complete" and "task".
   // Questions about an already-active goal must use existing context, not create a new goal.
   if (/(?:\b(goal|goals)\b|मेरा\s+गोल|मेरा\s+goal|my\s+goal|मेरा\s+लक्ष्य|my\s+target)/i.test(text) &&
