@@ -1120,12 +1120,13 @@ app.get("/api/proactive",(req,res)=>{
     signal={type:"priority",priority:"high",reason:"high_priority_task_pending",message:"Aapka high-priority kaam pending hai: " + priorityTask.title,suggestedAction:{type:"task",taskId:priorityTask.id,title:priorityTask.title}};
   }else if(actionable.length && next?.type==="task"){
     signal={type:"next_action",priority:"normal",reason:"next_action_available",message:"Agla useful kaam ready hai: " + next.title,suggestedAction:{type:"task",taskId:next.taskId||null,title:next.title}};
-  }else if(activeGoals.length){
-    const goalTitle=activeGoals[0].title||activeGoals[0].name||"active goal";
-    signal={type:"goal_followup",priority:"normal",reason:"active_goal_without_actionable_task",message:"Aapka goal active hai. Main uska next concrete task set kar sakta hoon: " + goalTitle,suggestedAction:{type:"goal_followup",goalId:activeGoals[0].id||null}};
   }
+  // An active goal alone is not permission to send an unsolicited follow-up.
+  // Keep the goal visible in JARVIS · PLAN; suggest its next task only when
+  // the user explicitly asks to plan or continue, rather than after greetings
+  // or repeated "show my active goals and pending tasks" requests.
 
-  const shouldSpeak=Boolean(signal && (signal.priority==="high" || signal.type==="goal_followup" || signal.type==="next_action"));
+  const shouldSpeak=Boolean(signal && (signal.priority==="high" || signal.type==="next_action"));
   const checkedAt=new Date().toISOString();
   res.json({success:true,shouldSpeak,message:signal?.message||"",signal,nextAction:next,decision,checkedAt,context:{openTasks:open.length,actionableTasks:actionable.length,highPriorityTasks:high.length,activeGoals:activeGoals.length,dueSoonTasks:dueSoonTasks.length,activeGoal:activeGoal?{id:activeGoal.id,title:activeGoal.title||activeGoal.name||"active goal",taskCount:goalTaskCount,openTaskCount:goalOpenTaskCount}:null,checkedAt}});
 });
