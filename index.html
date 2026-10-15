@@ -1446,6 +1446,7 @@
                 <div style="color:var(--muted);font-size:11px;margin-top:4px;">
                   ${done ? "Completed" : "Open"} · ${escapeHtml(task.priority || "normal")}
                 </div>
+                <button type="button" style="margin-top:8px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);font-size:12px;" onclick="deleteTask('${escapeHtml(task.id)}')">Delete task</button>
               </div>
             `;
           }).join("");
@@ -1456,6 +1457,19 @@
         });
 
       panel.scrollIntoView({behavior:"smooth", block:"start"});
+    }
+
+    async function deleteTask(taskId) {
+      if (!taskId || !window.confirm("Delete this task? This cannot be undone.")) return;
+      try {
+        const response = await fetch(`${API_URL}/api/tasks/${encodeURIComponent(taskId)}`, { method: "DELETE" });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || "Task deletion failed");
+        openTasks();
+        refreshTaskStatus();
+      } catch (error) {
+        window.alert("Task delete nahi ho paya. Please try again.");
+      }
     }
 
     function escapeHtml(value) {
