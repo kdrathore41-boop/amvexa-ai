@@ -1063,6 +1063,15 @@ app.use((req,res,next)=>{
 
 app.get("/api/health", (req,res)=>res.json({success:true,service:"amvexa-ai",version:VERSION,release:RELEASE,persistence:persistenceStatus}));
 app.get("/api/memory", (req,res)=>res.json({success:true,memory}));
+app.delete("/api/tasks/:id", (req,res)=>{
+  const taskId = String(req.params.id || "").trim();
+  const index = tasks.findIndex(task => String(task.id) === taskId);
+  if (index < 0) return res.status(404).json({success:false,error:"Task not found"});
+  const [removed] = tasks.splice(index, 1);
+  writeJson(FILES.tasks, tasks);
+  logAction("delete_task", { taskId }, { success:true, removedTitle:removed.title });
+  res.json({success:true, removedTaskId:taskId, removedTitle:removed.title, tasks:tasks.filter(isUserFacingTask)});
+});
 app.get("/api/tasks", (req,res)=>res.json({success:true,tasks:tasks.filter(isUserFacingTask)}));
 app.get("/api/context", (req,res)=>res.json({success:true,context:contextSummary()}));
 app.get("/api/conversation", (req,res)=>res.json({success:true,conversation:conversation.slice(-MAX.conversation)}));
