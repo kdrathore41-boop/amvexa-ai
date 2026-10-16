@@ -1054,11 +1054,16 @@ function assistantModeFallback() {
   return "Mera operating mode clear hai: context → priority → action → execution → verification → learning.\n\nAbhi next action: ek active goal register karna, taaki main aage usse track karke aapko baar-baar repeat na karwaun.";
 }
 
-app.use((req,res,next)=>{
-  if (!req.path.startsWith("/api/")) return next();
-  // Never block API requests on durable-state initialization.
-  // Render/DB startup can be slow; in-memory state remains available.
-  next();
+app.use(async (req,res,next)=>{
+  if (!req.path.startsWith("/api/") || req.path === "/api/health") return next();
+  // Do not answer stateful API requests until durable state has loaded.
+  // This prevents cold starts from briefly reporting empty tasks/goals/memory.
+  try {
+    await persistenceReady;
+    return next();
+  } catch (error) {
+    return res.status(503).json({success:false,error:"Amvexa is initializing durable state. Please retry shortly."});
+  }
 });
 
 app.get("/api/health", (req,res)=>res.json({success:true,service:"amvexa-ai",version:VERSION,release:RELEASE,persistence:persistenceStatus}));
