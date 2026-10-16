@@ -999,7 +999,7 @@ function localBrain(message, reason = "") {
     ? "आपके खुले काम में अगला action: " + next.title
     : "अभी कोई active task नहीं है। हम पहला concrete task तय कर सकते हैं।";
   if (intent === "tasks") {
-    const open = tasks.filter(t => t.status !== "done");
+    const open = tasks.filter(isUserFacingTask);
     return open.length ? "आपके active tasks:\n" + open.map((t,i) => (i+1) + ". " + t.title).join("\n") : "अभी कोई active task नहीं है।";
   }
   if (intent === "recall") {
