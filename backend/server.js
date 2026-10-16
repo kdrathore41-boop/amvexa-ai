@@ -251,6 +251,7 @@ async function initializePersistence() {
       Object.entries(stored.get("pushSubscriptions")).forEach(([key,value]) => pushSubscriptions.set(key,value));
     }
     persistenceStatus = { enabled: true, ready: true, error: null };
+    recoverTasksFromAudit();
     // Seed the database once when it is empty but local bundled state exists.
     const hasRows = result.rows.length > 0;
     if (!hasRows) {
@@ -320,6 +321,60 @@ function logAction(tool, args, result) {
   audit.push({ id: `audit_${Date.now()}`, at: new Date().toISOString(), tool, args: args || {}, result: result || {} });
   audit = audit.slice(-MAX.audit);
   writeJson(FILES.audit, audit);
+}
+
+/*
+ * Recover tasks only when the current task store is empty. The audit trail is
+ * the only durable secondary source available for task lifecycle events.
+ * Replay snapshots in timestamp order and honor explicit completion/deletion
+ * events so recovery never reactivates a completed task or resurrects a
+ * deleted task.
+ */
+function recoverTasksFromAudit() {
+  if (tasks.length || !Array.isArray(audit) || !audit.length) return 0;
+
+  const recovered = new Map();
+  const deleted = new Set();
+  const ordered = [...audit].sort((a, b) => {
+    const left = Date.parse(a?.at || "") || 0;
+    const right = Date.parse(b?.at || "") || 0;
+    return left - right;
+  });
+
+  const rememberSnapshot = (candidate) => {
+    if (!candidate || !candidate.id || !candidate.title) return;
+    recovered.set(String(candidate.id), { ...candidate });
+    deleted.delete(String(candidate.id));
+  };
+
+  for (const entry of ordered) {
+    const tool = String(entry?.tool || "");
+    const args = entry?.args || {};
+    const result = entry?.result || {};
+
+    if (tool === "delete_task") {
+      const id = String(args.taskId || result.removedTaskId || "");
+      if (id) {
+        recovered.delete(id);
+        deleted.add(id);
+      }
+      continue;
+    }
+
+    if (result.task) rememberSnapshot(result.task);
+    if (Array.isArray(result.tasks)) result.tasks.forEach(rememberSnapshot);
+    if (result.firstTask) rememberSnapshot(result.firstTask);
+  }
+
+  const restored = [...recovered.values()]
+    .filter(task => !deleted.has(String(task.id)))
+    .slice(-MAX.tasks);
+
+  if (!restored.length) return 0;
+  tasks = restored;
+  writeJson(FILES.tasks, tasks);
+  console.warn(`Recovered ${tasks.length} task record(s) from audit history.`);
+  return tasks.length;
 }
 
 function normalizePersonalMemory(content) {
